@@ -13,4 +13,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rpm-rs = "0.6.0"
+rpm-rs = "0.6"
+toml = "0.5"
+cargo_toml = "0.8"
+
+[package.metadata.binary-rpm]
+assets = [
+    { source = "target/release/cargo-binary-rpm", dest = "/usr/bin/" },
+]
