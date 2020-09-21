@@ -1,10 +1,10 @@
 use crate::error::{ConfigError, Error};
 use cargo_toml::Manifest;
 use rpm::{Compressor, RPMBuilder, RPMFileOptions};
+use std::env::consts::ARCH;
 use std::path::Path;
 use std::str::FromStr;
 use toml::value::Table;
-use std::env::consts::ARCH;
 
 #[derive(Debug)]
 pub struct Config {
@@ -126,18 +126,47 @@ impl Config {
     }
 
     pub fn create_rpm_builder(&self, target_arch: Option<&str>) -> Result<RPMBuilder, Error> {
+        let metadata = self.metadata()?;
+        macro_rules! get_str_from_metadata {
+            ($name:expr) => {
+                if let Some(val) = metadata.get($name) {
+                    Some(val.as_str()
+                        .ok_or(ConfigError::WrongType(
+                            concat!("package.", $name),
+                            "string"
+                        ))?)
+                } else {
+                    None
+                } as Option<&str>
+            }
+        };
+        macro_rules! get_i64_from_metadata {
+            ($name:expr) => {
+                if let Some(val) = metadata.get($name) {
+                    Some(val.as_integer()
+                        .ok_or(ConfigError::WrongType(
+                            concat!("package.", $name),
+                            "integer"
+                        ))?)
+                } else {
+                    None
+                } as Option<i64>
+            }
+        };
+
         let pkg = self
             .manifest
             .package
             .as_ref()
             .ok_or(ConfigError::Missing("package"))?;
-        let name = pkg.name.as_str();
-        let version = pkg.version.as_str();
-        let license = pkg
-            .license
-            .as_ref()
-            .ok_or(ConfigError::Missing("package.version"))?
-            .as_str();
+        let name = get_str_from_metadata!("name").unwrap_or(pkg.name.as_str());
+        let version = get_str_from_metadata!("version").unwrap_or(pkg.version.as_str());
+        let license = get_str_from_metadata!("license").unwrap_or(
+            pkg.license
+                .as_ref()
+                .ok_or(ConfigError::Missing("package.version"))?
+                .as_str(),
+        );
         let arch = target_arch.unwrap_or(match ARCH {
             "x86" => "i586",
             "arm" => "armhfp",
@@ -145,17 +174,38 @@ impl Config {
             "powerpc64" => "ppc64",
             _ => ARCH,
         });
-        let desc = pkg
-            .description
-            .as_ref()
-            .ok_or(ConfigError::Missing("package.description"))?
-            .as_str();
+        let desc = get_str_from_metadata!("summary").unwrap_or(
+            pkg.description
+                .as_ref()
+                .ok_or(ConfigError::Missing("package.description"))?
+                .as_str(),
+        );
 
         let mut builder = RPMBuilder::new(name, version, license, arch, desc)
             .compression(Compressor::from_str("gzip").unwrap());
         for file in &self.files()? {
             let options = file.generate_rpm_file_options();
             builder = builder.with_file(file.source, options)?;
+        }
+
+        if let Some(release) = get_i64_from_metadata!("release") {
+            builder = builder.release(release as u16);
+        }
+        if let Some(epoch) = get_i64_from_metadata!("epoch") {
+            builder = builder.epoch(epoch as i32);
+        }
+
+        if let Some(pre_install_script) = get_str_from_metadata!("pre_install_script") {
+            builder = builder.pre_install_script(pre_install_script);
+        }
+        if let Some(pre_uninstall_script) = get_str_from_metadata!("pre_uninstall_script") {
+            builder = builder.pre_uninstall_script(pre_uninstall_script);
+        }
+        if let Some(post_install_script) = get_str_from_metadata!("post_install_script") {
+            builder = builder.pre_install_script(post_install_script);
+        }
+        if let Some(post_uninstall_script) = get_str_from_metadata!("post_uninstall_script") {
+            builder = builder.pre_uninstall_script(post_uninstall_script);
         }
 
         Ok(builder)
