@@ -216,6 +216,22 @@ mod test {
                 mode: None,
                 config: false,
                 doc: false
+            }, FileInfo {
+                source: "LICENSE",
+                dest: "/usr/share/doc/cargo-binary-rpm/",
+                user: None,
+                group: None,
+                mode: None,
+                config: false,
+                doc: true
+            }, FileInfo {
+                source: "README.md",
+                dest: "/usr/share/doc/cargo-binary-rpm/",
+                user: None,
+                group: None,
+                mode: None,
+                config: false,
+                doc: true
             }]
         );
     }

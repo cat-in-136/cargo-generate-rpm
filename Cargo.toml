@@ -20,4 +20,6 @@ cargo_toml = "0.8"
 [package.metadata.binary-rpm]
 assets = [
     { source = "target/release/cargo-binary-rpm", dest = "/usr/bin/" },
+    { source = "LICENSE", dest = "/usr/share/doc/cargo-binary-rpm/", doc = true },
+    { source = "README.md", dest = "/usr/share/doc/cargo-binary-rpm/", doc = true }
 ]
