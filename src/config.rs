@@ -143,10 +143,14 @@ impl Config {
             .ok_or(ConfigError::Missing("package.description"))?
             .as_str();
 
-        RPMBuilder::new(name, version, license, target_arch, desc)
+        let mut builder = RPMBuilder::new(name, version, license, target_arch, desc)
             .compression(Compressor::from_str("gzip").unwrap());
+        for file in &self.files()? {
+            let options = file.generate_rpm_file_options();
+            builder = builder.with_file(file.source, options)?;
+        }
 
-        unimplemented!()
+        Ok(builder)
     }
 }
 
@@ -161,8 +165,8 @@ pub struct FileInfo<'a, 'b, 'c, 'd> {
     doc: bool,
 }
 
-impl Into<RPMFileOptions> for FileInfo<'_, '_, '_, '_> {
-    fn into(self) -> RPMFileOptions {
+impl FileInfo<'_, '_, '_, '_> {
+    fn generate_rpm_file_options(&self) -> RPMFileOptions {
         let mut rpm_file_option = RPMFileOptions::new(self.dest);
         if let Some(user) = self.user {
             rpm_file_option = rpm_file_option.user(user);
@@ -208,31 +212,41 @@ mod test {
         let files = config.files().unwrap();
         assert_eq!(
             files,
-            vec![FileInfo {
-                source: "target/release/cargo-binary-rpm",
-                dest: "/usr/bin/",
-                user: None,
-                group: None,
-                mode: None,
-                config: false,
-                doc: false
-            }, FileInfo {
-                source: "LICENSE",
-                dest: "/usr/share/doc/cargo-binary-rpm/",
-                user: None,
-                group: None,
-                mode: None,
-                config: false,
-                doc: true
-            }, FileInfo {
-                source: "README.md",
-                dest: "/usr/share/doc/cargo-binary-rpm/",
-                user: None,
-                group: None,
-                mode: None,
-                config: false,
-                doc: true
-            }]
+            vec![
+                FileInfo {
+                    source: "target/release/cargo-binary-rpm",
+                    dest: "/usr/bin/",
+                    user: None,
+                    group: None,
+                    mode: None,
+                    config: false,
+                    doc: false
+                },
+                FileInfo {
+                    source: "LICENSE",
+                    dest: "/usr/share/doc/cargo-binary-rpm/",
+                    user: None,
+                    group: None,
+                    mode: None,
+                    config: false,
+                    doc: true
+                },
+                FileInfo {
+                    source: "README.md",
+                    dest: "/usr/share/doc/cargo-binary-rpm/",
+                    user: None,
+                    group: None,
+                    mode: None,
+                    config: false,
+                    doc: true
+                }
+            ]
         );
     }
+
+    // #[test]
+    // fn test_config_create_rpm_builder() {
+    //     let config = Config::new("Cargo.toml").unwrap();
+    //     let builder = config.create_rpm_builder("x86_64").unwrap();
+    // }
 }

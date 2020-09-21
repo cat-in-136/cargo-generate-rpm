@@ -1,6 +1,8 @@
 use cargo_toml::Error as CargoTomlError;
+use rpm::RPMError;
 use std::error::Error as StdErr;
 use std::fmt;
+use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
 pub enum ConfigError {
@@ -34,10 +36,11 @@ impl fmt::Display for ConfigError {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Error {
     CargoToml(CargoTomlError),
     Config(ConfigError),
+    Rpm(RPMError),
 }
 
 impl StdErr for Error {
@@ -45,6 +48,7 @@ impl StdErr for Error {
         match self {
             Error::CargoToml(err) => Some(err),
             Error::Config(err) => Some(err),
+            Error::Rpm(err) => Some(err),
         }
     }
 }
@@ -52,8 +56,9 @@ impl StdErr for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::CargoToml(ref err) => err.fmt(f),
-            Error::Config(ref err) => err.fmt(f),
+            Error::CargoToml(ref err) => fmt::Display::fmt(&err, f),
+            Error::Config(ref err) => fmt::Display::fmt(&err, f),
+            Error::Rpm(ref err) => fmt::Display::fmt(&err, f),
         }
     }
 }
@@ -67,5 +72,11 @@ impl From<CargoTomlError> for Error {
 impl From<ConfigError> for Error {
     fn from(err: ConfigError) -> Self {
         Error::Config(err)
+    }
+}
+
+impl From<RPMError> for Error {
+    fn from(err: RPMError) -> Self {
+        Error::Rpm(err)
     }
 }
