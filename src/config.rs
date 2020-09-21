@@ -129,18 +129,18 @@ impl Config {
             .manifest
             .package
             .as_ref()
-            .ok_or(ConfigError::Missing("[package]"))?;
+            .ok_or(ConfigError::Missing("package"))?;
         let name = pkg.name.as_str();
         let version = pkg.version.as_str();
         let license = pkg
             .license
             .as_ref()
-            .ok_or(ConfigError::Missing("version"))?
+            .ok_or(ConfigError::Missing("package.version"))?
             .as_str();
         let desc = pkg
             .description
             .as_ref()
-            .ok_or(ConfigError::Missing("description"))?
+            .ok_or(ConfigError::Missing("package.description"))?
             .as_str();
 
         RPMBuilder::new(name, version, license, target_arch, desc)
