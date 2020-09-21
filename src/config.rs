@@ -4,6 +4,7 @@ use rpm::{Compressor, RPMBuilder, RPMFileOptions};
 use std::path::Path;
 use std::str::FromStr;
 use toml::value::Table;
+use std::env::consts::ARCH;
 
 #[derive(Debug)]
 pub struct Config {
@@ -124,7 +125,7 @@ impl Config {
         Ok(files)
     }
 
-    pub fn create_rpm_builder(&self, target_arch: &str) -> Result<RPMBuilder, Error> {
+    pub fn create_rpm_builder(&self, target_arch: Option<&str>) -> Result<RPMBuilder, Error> {
         let pkg = self
             .manifest
             .package
@@ -137,13 +138,20 @@ impl Config {
             .as_ref()
             .ok_or(ConfigError::Missing("package.version"))?
             .as_str();
+        let arch = target_arch.unwrap_or(match ARCH {
+            "x86" => "i586",
+            "arm" => "armhfp",
+            "powerpc" => "ppc",
+            "powerpc64" => "ppc64",
+            _ => ARCH,
+        });
         let desc = pkg
             .description
             .as_ref()
             .ok_or(ConfigError::Missing("package.description"))?
             .as_str();
 
-        let mut builder = RPMBuilder::new(name, version, license, target_arch, desc)
+        let mut builder = RPMBuilder::new(name, version, license, arch, desc)
             .compression(Compressor::from_str("gzip").unwrap());
         for file in &self.files()? {
             let options = file.generate_rpm_file_options();

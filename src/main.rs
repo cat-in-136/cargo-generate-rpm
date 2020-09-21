@@ -8,7 +8,7 @@ mod error;
 fn process() -> Result<(), Error> {
     let config = Config::new("Cargo.toml")?;
 
-    let rpm_pkg = config.create_rpm_builder("x86_64")?.build()?;
+    let rpm_pkg = config.create_rpm_builder(None)?.build()?;
     let mut f = File::create("target/package.rpm").unwrap(); // TODO get package name
     rpm_pkg.write(&mut f)?;
 
