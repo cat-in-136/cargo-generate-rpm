@@ -1,0 +1,16 @@
+[package]
+name = "cargo-binary-rpm"
+license = "MIT"
+authors = ["@cat_in_136"]
+categories = ["command-line-utilities", "development-tools::cargo-plugins", "development-tools::build-utils"]
+description = "Make a binary RPM package (.rpm) with a Cargo subcommand"
+homepage = "https://github.com/cat-in-136/cargo-binary-rpm"
+keywords = ["rpm", "package", "cargo", "subcommand"]
+repository = "https://github.com/cat-in-136/cargo-binary-rpm"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rpm-rs = "0.6.0"
