@@ -215,7 +215,7 @@ mod test {
             vec![
                 FileInfo {
                     source: "target/release/cargo-binary-rpm",
-                    dest: "/usr/bin/",
+                    dest: "/usr/bin/cargo-binary-rpm",
                     user: None,
                     group: None,
                     mode: None,
@@ -224,7 +224,7 @@ mod test {
                 },
                 FileInfo {
                     source: "LICENSE",
-                    dest: "/usr/share/doc/cargo-binary-rpm/",
+                    dest: "/usr/share/doc/cargo-binary-rpm/LICENSE",
                     user: None,
                     group: None,
                     mode: None,
@@ -233,7 +233,7 @@ mod test {
                 },
                 FileInfo {
                     source: "README.md",
-                    dest: "/usr/share/doc/cargo-binary-rpm/",
+                    dest: "/usr/share/doc/cargo-binary-rpm/README.md",
                     user: None,
                     group: None,
                     mode: None,
