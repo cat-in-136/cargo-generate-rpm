@@ -39,7 +39,7 @@ fn main() {
     } else {
         let result = process();
         if let Err(err) = result {
-            eprintln!("cargo-binary-rpm: {}", err);
+            eprintln!("cargo-generate-rpm: {}", err);
             std::process::exit(1);
         }
     }

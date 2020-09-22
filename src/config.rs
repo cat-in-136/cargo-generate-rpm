@@ -253,7 +253,7 @@ mod test {
     fn test_config_new() {
         let config = Config::new("Cargo.toml").unwrap();
         let pkg = config.manifest.package.unwrap();
-        assert_eq!(pkg.name, "cargo-binary-rpm");
+        assert_eq!(pkg.name, "cargo-generate-rpm");
     }
 
     #[test]
@@ -272,8 +272,8 @@ mod test {
             files,
             vec![
                 FileInfo {
-                    source: "target/release/cargo-binary-rpm",
-                    dest: "/usr/bin/cargo-binary-rpm",
+                    source: "target/release/cargo-generate-rpm",
+                    dest: "/usr/bin/cargo-generate-rpm",
                     user: None,
                     group: None,
                     mode: None,
@@ -282,7 +282,7 @@ mod test {
                 },
                 FileInfo {
                     source: "LICENSE",
-                    dest: "/usr/share/doc/cargo-binary-rpm/LICENSE",
+                    dest: "/usr/share/doc/cargo-generate-rpm/LICENSE",
                     user: None,
                     group: None,
                     mode: None,
@@ -291,7 +291,7 @@ mod test {
                 },
                 FileInfo {
                     source: "README.md",
-                    dest: "/usr/share/doc/cargo-binary-rpm/README.md",
+                    dest: "/usr/share/doc/cargo-generate-rpm/README.md",
                     user: None,
                     group: None,
                     mode: None,
