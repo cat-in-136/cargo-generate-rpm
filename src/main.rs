@@ -3,16 +3,17 @@ use crate::error::Error;
 use getopts::Options;
 use std::env;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 mod config;
 mod error;
 
-fn process() -> Result<(), Error> {
+fn process(target_arch: Option<String>, target_file: Option<PathBuf>) -> Result<(), Error> {
     let config = Config::new("Cargo.toml")?;
 
-    let rpm_pkg = config.create_rpm_builder(None)?.build()?;
-    let file_name = Path::new("target").join(format!(
+    let rpm_pkg = config.create_rpm_builder(target_arch)?.build()?;
+
+    let default_file_name = Path::new("target").join(format!(
         "{}-{}{}{}.rpm",
         rpm_pkg.metadata.header.get_name()?,
         rpm_pkg.metadata.header.get_version()?,
@@ -29,7 +30,8 @@ fn process() -> Result<(), Error> {
             .map(|v| format!(".{}", v))
             .unwrap_or_default(),
     ));
-    let mut f = File::create(file_name).unwrap();
+    let target_file_name = target_file.unwrap_or(default_file_name);
+    let mut f = File::create(target_file_name).unwrap();
     rpm_pkg.write(&mut f)?;
 
     Ok(())
@@ -39,6 +41,8 @@ fn main() {
     let program = env::args().nth(0).unwrap();
 
     let mut opts = Options::new();
+    opts.optopt("a", "arch", "set target arch", "ARCH");
+    opts.optopt("o", "output", "set output file", "OUTPUT.rpm");
     opts.optflag("h", "help", "print this help menu");
     let opt_matches = opts.parse(env::args().skip(1)).unwrap_or_else(|err| {
         eprintln!("{}: {}", program, err);
@@ -47,11 +51,13 @@ fn main() {
     if opt_matches.opt_present("h") {
         println!("{}", opts.usage(&*format!("Usage: {} [options]", program)));
     }
+    let target_arch = opt_matches.opt_str("a");
+    let target_file = opt_matches.opt_str("o").map(|v| PathBuf::from(v));
 
     if let Some(_) = std::env::var_os("RUST_BACKTRACE") {
-        process().unwrap();
+        process(target_arch, target_file).unwrap();
     } else {
-        process().unwrap_or_else(|err| {
+        process(target_arch, target_file).unwrap_or_else(|err| {
             eprintln!("{}: {}", program, err);
             std::process::exit(1);
         });

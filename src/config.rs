@@ -125,7 +125,7 @@ impl Config {
         Ok(files)
     }
 
-    pub fn create_rpm_builder(&self, target_arch: Option<&str>) -> Result<RPMBuilder, Error> {
+    pub fn create_rpm_builder(&self, target_arch: Option<String>) -> Result<RPMBuilder, Error> {
         let metadata = self.metadata()?;
         macro_rules! get_str_from_metadata {
             ($name:expr) => {
@@ -167,13 +167,16 @@ impl Config {
                 .ok_or(ConfigError::Missing("package.version"))?
                 .as_str(),
         );
-        let arch = target_arch.unwrap_or(match ARCH {
-            "x86" => "i586",
-            "arm" => "armhfp",
-            "powerpc" => "ppc",
-            "powerpc64" => "ppc64",
-            _ => ARCH,
-        });
+        let arch = target_arch.unwrap_or(
+            match ARCH {
+                "x86" => "i586",
+                "arm" => "armhfp",
+                "powerpc" => "ppc",
+                "powerpc64" => "ppc64",
+                _ => ARCH,
+            }
+            .to_string(),
+        );
         let desc = get_str_from_metadata!("summary").unwrap_or(
             pkg.description
                 .as_ref()
@@ -181,7 +184,7 @@ impl Config {
                 .as_str(),
         );
 
-        let mut builder = RPMBuilder::new(name, version, license, arch, desc)
+        let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str("gzip").unwrap());
         for file in &self.files()? {
             let options = file.generate_rpm_file_options();
