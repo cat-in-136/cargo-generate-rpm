@@ -1,5 +1,7 @@
 use crate::config::Config;
 use crate::error::Error;
+use getopts::Options;
+use std::env;
 use std::fs::File;
 use std::path::Path;
 
@@ -34,13 +36,24 @@ fn process() -> Result<(), Error> {
 }
 
 fn main() {
+    let program = env::args().nth(0).unwrap();
+
+    let mut opts = Options::new();
+    opts.optflag("h", "help", "print this help menu");
+    let opt_matches = opts.parse(env::args().skip(1)).unwrap_or_else(|err| {
+        eprintln!("{}: {}", program, err);
+        std::process::exit(1);
+    });
+    if opt_matches.opt_present("h") {
+        println!("{}", opts.usage(&*format!("Usage: {} [options]", program)));
+    }
+
     if let Some(_) = std::env::var_os("RUST_BACKTRACE") {
         process().unwrap();
     } else {
-        let result = process();
-        if let Err(err) = result {
-            eprintln!("cargo-generate-rpm: {}", err);
+        process().unwrap_or_else(|err| {
+            eprintln!("{}: {}", program, err);
             std::process::exit(1);
-        }
+        });
     }
 }

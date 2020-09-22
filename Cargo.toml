@@ -16,6 +16,7 @@ edition = "2018"
 rpm-rs = "0.6"
 toml = "0.5"
 cargo_toml = "0.8"
+getopts = "0.2"
 
 [package.metadata.generate-rpm]
 assets = [
