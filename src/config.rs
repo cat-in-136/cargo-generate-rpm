@@ -31,12 +31,12 @@ impl Config {
             .ok_or(ConfigError::WrongType("package.metadata", "table"))?;
         let metadata = metadata
             .iter()
-            .find(|(name, _)| name.as_str() == "binary-rpm")
-            .ok_or(ConfigError::Missing("package.metadata.binary-rpm"))?
+            .find(|(name, _)| name.as_str() == "generate-rpm")
+            .ok_or(ConfigError::Missing("package.metadata.generate-rpm"))?
             .1
             .as_table()
             .ok_or(ConfigError::WrongType(
-                "package.metadata.binary-rpm",
+                "package.metadata.generate-rpm",
                 "table",
             ))?;
         Ok(metadata)
@@ -46,10 +46,10 @@ impl Config {
         let metadata = self.metadata()?;
         let assets = metadata
             .get("assets")
-            .ok_or(ConfigError::Missing("package.metadata.binary-rpm.assets"))?
+            .ok_or(ConfigError::Missing("package.metadata.generate-rpm.assets"))?
             .as_array()
             .ok_or(ConfigError::WrongType(
-                "package.metadata.binary-rpm.assets",
+                "package.metadata.generate-rpm.assets",
                 "array",
             ))?;
 
@@ -132,7 +132,7 @@ impl Config {
                 if let Some(val) = metadata.get($name) {
                     Some(val.as_str()
                         .ok_or(ConfigError::WrongType(
-                            concat!("package.", $name),
+                            concat!("package.metadata.generate-rpm.", $name),
                             "string"
                         ))?)
                 } else {
@@ -145,7 +145,7 @@ impl Config {
                 if let Some(val) = metadata.get($name) {
                     Some(val.as_integer()
                         .ok_or(ConfigError::WrongType(
-                            concat!("package.", $name),
+                            concat!("package.metadata.generate-rpm.", $name),
                             "integer"
                         ))?)
                 } else {

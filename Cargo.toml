@@ -17,7 +17,7 @@ rpm-rs = "0.6"
 toml = "0.5"
 cargo_toml = "0.8"
 
-[package.metadata.binary-rpm]
+[package.metadata.generate-rpm]
 assets = [
     { source = "target/release/cargo-generate-rpm", dest = "/usr/bin/cargo-generate-rpm" },
     { source = "LICENSE", dest = "/usr/share/doc/cargo-generate-rpm/LICENSE", doc = true },
