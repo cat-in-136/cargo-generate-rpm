@@ -2,8 +2,9 @@ use crate::config::Config;
 use crate::error::Error;
 use getopts::Options;
 use std::env;
-use std::fs::File;
+use std::fs::{File, create_dir_all};
 use std::path::{Path, PathBuf};
+use rpm::RPMError;
 
 mod config;
 mod error;
@@ -13,7 +14,7 @@ fn process(target_arch: Option<String>, target_file: Option<PathBuf>) -> Result<
 
     let rpm_pkg = config.create_rpm_builder(target_arch)?.build()?;
 
-    let default_file_name = Path::new("target").join(format!(
+    let default_file_name = Path::new("target").join("generate-rpm").join(format!(
         "{}-{}{}{}.rpm",
         rpm_pkg.metadata.header.get_name()?,
         rpm_pkg.metadata.header.get_version()?,
@@ -31,6 +32,11 @@ fn process(target_arch: Option<String>, target_file: Option<PathBuf>) -> Result<
             .unwrap_or_default(),
     ));
     let target_file_name = target_file.unwrap_or(default_file_name);
+    if let Some(parent_dir) = target_file_name.parent() {
+        if ! parent_dir.exists() {
+            create_dir_all(parent_dir).map_err(|err| RPMError::Io(err))?;
+        }
+    }
     let mut f = File::create(target_file_name).unwrap();
     rpm_pkg.write(&mut f)?;
 
