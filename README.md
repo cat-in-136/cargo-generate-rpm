@@ -6,6 +6,12 @@
 
 This command does not depend on `rpmbuild` and generates an RPM package file without a spec file by using [rpm-rs](https://crates.io/crates/rpm-rs).
 
+## Install
+
+```sh
+cargo install cargo-generate-rpm
+```
+
 ## Usage
 
 ```sh
@@ -17,7 +23,7 @@ cargo generate-rpm
 Upon run `cargo generate-rpm` on your cargo project, a binary RPM package file will be created in `target/generate-rpm/XXX.rpm`.
 You can change the RPM package file location using `-o` option.
 
-In advance, run `cargo run --release` and strip the debug symbols (`strip -s target/release/XXX`), because these are not run upon `cargo generate-rpm` as of now. 
+In advance, run `cargo run --release` and strip the debug symbols (`strip -s target/release/XXX`), because these are not run upon `cargo generate-rpm` as of now.
 
 ## Configuration
 
