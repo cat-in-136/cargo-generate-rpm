@@ -20,7 +20,7 @@ getopts = "0.2"
 
 [package.metadata.generate-rpm]
 assets = [
-    { source = "target/release/cargo-generate-rpm", dest = "/usr/bin/cargo-generate-rpm" },
-    { source = "LICENSE", dest = "/usr/share/doc/cargo-generate-rpm/LICENSE", doc = true },
-    { source = "README.md", dest = "/usr/share/doc/cargo-generate-rpm/README.md", doc = true }
+    { source = "target/release/cargo-generate-rpm", dest = "/usr/bin/cargo-generate-rpm", mode = "0755" },
+    { source = "LICENSE", dest = "/usr/share/doc/cargo-generate-rpm/LICENSE", doc = true, mode = "0644" },
+    { source = "README.md", dest = "/usr/share/doc/cargo-generate-rpm/README.md", doc = true, mode = "0644" }
 ]

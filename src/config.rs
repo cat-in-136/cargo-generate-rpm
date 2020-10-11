@@ -90,10 +90,16 @@ impl Config {
                 let mode = mode
                     .as_str()
                     .ok_or(ConfigError::AssetFileWrongType(idx, "mode", "string"))?;
-                Some(
-                    usize::from_str_radix(mode, 8)
-                        .map_err(|_| ConfigError::AssetFileWrongType(idx, "mode", "oct-string"))?,
-                )
+                let mode = usize::from_str_radix(mode, 8)
+                    .map_err(|_| ConfigError::AssetFileWrongType(idx, "mode", "oct-string"))?;
+                let file_mode = if mode & 0o170000 != 0 {
+                    None
+                } else if source.ends_with('/') {
+                    Some(0o040000) // S_IFDIR
+                } else {
+                    Some(0o100000) // S_IFREG
+                };
+                Some(file_mode.unwrap_or_default() | mode)
             } else {
                 None
             };
@@ -279,7 +285,7 @@ mod test {
                     dest: "/usr/bin/cargo-generate-rpm",
                     user: None,
                     group: None,
-                    mode: None,
+                    mode: Some(0o0100755),
                     config: false,
                     doc: false
                 },
@@ -288,7 +294,7 @@ mod test {
                     dest: "/usr/share/doc/cargo-generate-rpm/LICENSE",
                     user: None,
                     group: None,
-                    mode: None,
+                    mode: Some(0o0100644),
                     config: false,
                     doc: true
                 },
@@ -297,7 +303,7 @@ mod test {
                     dest: "/usr/share/doc/cargo-generate-rpm/README.md",
                     user: None,
                     group: None,
-                    mode: None,
+                    mode: Some(0o0100644),
                     config: false,
                     doc: true
                 }
