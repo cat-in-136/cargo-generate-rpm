@@ -5,6 +5,7 @@ authors = ["@cat_in_136"]
 categories = ["command-line-utilities", "development-tools::cargo-plugins", "development-tools::build-utils"]
 description = "Generate a binary RPM package (.rpm) from Cargo projects"
 homepage = "https://github.com/cat-in-136/cargo-generate-rpm"
+readme = "README.md"
 keywords = ["rpm", "package", "cargo", "subcommand"]
 repository = "https://github.com/cat-in-136/cargo-generate-rpm"
 version = "0.1.2"

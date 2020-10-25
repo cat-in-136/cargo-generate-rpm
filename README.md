@@ -1,10 +1,11 @@
 # cargo-generate-rpm
 
-![Rust](https://github.com/cat-in-136/cargo-generate-rpm/workflows/Rust/badge.svg)
-
 [Cargo](https://doc.rust-lang.org/cargo/) helper command to generate a binary [RPM package](https://rpm.org/) (.rpm) from Cargo project.
 
 This command does not depend on `rpmbuild` and generates an RPM package file without a spec file by using [rpm-rs](https://crates.io/crates/rpm-rs).
+
+![Rust](https://github.com/cat-in-136/cargo-generate-rpm/workflows/Rust/badge.svg)
+[![cargo-generate-rpm at crates.io](https://img.shields.io/crates/v/cargo-generate-rpm.svg)](https://crates.io/crates/cargo-generate-rpm)
 
 ## Install
 
