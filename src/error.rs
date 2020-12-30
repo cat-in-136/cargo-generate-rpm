@@ -1,5 +1,6 @@
 use cargo_toml::Error as CargoTomlError;
 use rpm::RPMError;
+use std::io::Error as IoError;
 use thiserror;
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -22,4 +23,6 @@ pub enum Error {
     Config(#[from] ConfigError),
     #[error(transparent)]
     Rpm(#[from] RPMError),
+    #[error(transparent)]
+    Io(#[from] IoError),
 }

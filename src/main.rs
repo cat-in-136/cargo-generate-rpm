@@ -2,9 +2,8 @@ use crate::config::Config;
 use crate::error::Error;
 use getopts::Options;
 use std::env;
-use std::fs::{File, create_dir_all};
+use std::fs::{create_dir_all, File};
 use std::path::{Path, PathBuf};
-use rpm::RPMError;
 
 mod config;
 mod error;
@@ -33,11 +32,11 @@ fn process(target_arch: Option<String>, target_file: Option<PathBuf>) -> Result<
     ));
     let target_file_name = target_file.unwrap_or(default_file_name);
     if let Some(parent_dir) = target_file_name.parent() {
-        if ! parent_dir.exists() {
-            create_dir_all(parent_dir).map_err(|err| RPMError::Io(err))?;
+        if !parent_dir.exists() {
+            create_dir_all(parent_dir)?;
         }
     }
-    let mut f = File::create(target_file_name).unwrap();
+    let mut f = File::create(target_file_name)?;
     rpm_pkg.write(&mut f)?;
 
     Ok(())
