@@ -59,12 +59,11 @@ fn main() {
     let target_arch = opt_matches.opt_str("a");
     let target_file = opt_matches.opt_str("o").map(|v| PathBuf::from(v));
 
-    if let Some(_) = std::env::var_os("RUST_BACKTRACE") {
-        process(target_arch, target_file).unwrap();
-    } else {
-        process(target_arch, target_file).unwrap_or_else(|err| {
-            eprintln!("{}: {}", program, err);
-            std::process::exit(1);
-        });
-    }
+    process(target_arch, target_file).unwrap_or_else(|err| {
+        eprintln!("{}: {}", program, err);
+        if cfg!(debug_assertions) {
+            panic!("{:?}", err);
+        }
+        std::process::exit(1);
+    });
 }
