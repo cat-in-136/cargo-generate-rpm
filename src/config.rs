@@ -170,7 +170,7 @@ impl Config {
         let license = get_str_from_metadata!("license").unwrap_or(
             pkg.license
                 .as_ref()
-                .ok_or(ConfigError::Missing("package.version"))?
+                .ok_or(ConfigError::Missing("package.license"))?
                 .as_str(),
         );
         let arch = target_arch.unwrap_or(
