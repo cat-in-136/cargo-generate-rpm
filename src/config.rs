@@ -2,19 +2,21 @@ use crate::error::{ConfigError, Error};
 use cargo_toml::Manifest;
 use rpm::{Compressor, RPMBuilder, RPMFileOptions};
 use std::env::consts::ARCH;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use toml::value::Table;
 
 #[derive(Debug)]
 pub struct Config {
     manifest: Manifest,
+    path: PathBuf,
 }
 
 impl Config {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let manifest = Manifest::from_path(path)?;
-        Ok(Self { manifest })
+        let manifest = Manifest::from_path(path.as_ref())?;
+        let path = path.as_ref().to_path_buf();
+        Ok(Self { manifest, path })
     }
 
     fn metadata(&self) -> Result<&Table, ConfigError> {
@@ -194,7 +196,14 @@ impl Config {
             .compression(Compressor::from_str("gzip").unwrap());
         for file in &self.files()? {
             let options = file.generate_rpm_file_options();
-            builder = builder.with_file(file.source, options)?;
+
+            let file_source = if Path::new(file.source).exists() {
+                PathBuf::from(file.source)
+            } else {
+                self.path.parent().unwrap().join(file.source)
+            };
+
+            builder = builder.with_file(file_source, options)?;
         }
 
         if let Some(release) = get_i64_from_metadata!("release") {
