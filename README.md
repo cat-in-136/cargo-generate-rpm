@@ -36,7 +36,7 @@ This command obtains RPM metadata from [the `Cargo.toml` file](https://doc.rust-
 * version: the package version. If not present, `package.version` is used.
 * license: the package license. If not present, `package.license` is used.
 * summary: the package summary/description. If not present, `package.description` is used.
-* assets: the array of the files to be included in the package
+* assets: (**mandatory**) the array of the files to be included in the package
   * source: the location of that asset in the Rust project. (e.g. `target/release/XXX`)
   * dest: the install-destination. (e.g. `/usr/bin/XXX`)
   * mode: the permissions as octal string. (e.g. `755` to indicate `-rwxr-xr-x`)
@@ -48,3 +48,25 @@ This command obtains RPM metadata from [the `Cargo.toml` file](https://doc.rust-
 * pre_uninstall_script: optional string of pre_uninstall_script.
 * post_install_script: optional string of post_install_script.
 * post_uninstall_script: optional string of post_uninstall_script.
+
+## Advanced Usage
+
+### Workspace
+
+To generate an RPM package from a member of a workspace, execute `cargo generate-rpm` in the workspace directory
+with specifying the package (directory path) with option `-p`:
+
+```sh
+cargo build --release
+strip -s target/release/XXX
+cargo generate-rpm -p XXX
+```
+
+`[package.metadata.generate-rpm]` options should be written in `XXX/Cargo.toml`.
+
+When the option `-p` specified, first, the asset file `source` shall be treated as a relative path from the current directory.
+If not found, it shall be treated as a relative path from the directory of the package.
+If both not found, `cargo generate-rpm` shall fail with an error.
+
+For example, `source = target/bin/XXX` would usually be treated as a relative path from the current directory. 
+Because all packages in the workspace share a common output directory that is located `target` in workspace directory.
