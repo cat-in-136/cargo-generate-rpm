@@ -8,7 +8,7 @@ homepage = "https://github.com/cat-in-136/cargo-generate-rpm"
 readme = "README.md"
 keywords = ["rpm", "package", "cargo", "subcommand"]
 repository = "https://github.com/cat-in-136/cargo-generate-rpm"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
