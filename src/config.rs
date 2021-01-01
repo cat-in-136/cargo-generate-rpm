@@ -341,6 +341,12 @@ mod test {
     #[test]
     fn test_config_create_rpm_builder() {
         let config = Config::new("Cargo.toml").unwrap();
-        config.create_rpm_builder(None).unwrap();
+        let builder = config.create_rpm_builder(None);
+
+        assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
+            matches!(builder, Ok(_))
+        } else {
+            matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path == "target/release/cargo-generate-rpm")
+        });
     }
 }
