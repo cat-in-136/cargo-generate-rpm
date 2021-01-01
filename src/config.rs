@@ -1,20 +1,30 @@
 use crate::error::{ConfigError, Error};
+use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
 use rpm::{Compressor, RPMBuilder, RPMFileOptions};
 use std::env::consts::ARCH;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use toml::value::Table;
 
 #[derive(Debug)]
 pub struct Config {
     manifest: Manifest,
+    path: PathBuf,
 }
 
 impl Config {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let manifest = Manifest::from_path(path)?;
-        Ok(Self { manifest })
+        let path = path.as_ref().to_path_buf();
+        Manifest::from_path(&path)
+            .map(|manifest| Config {
+                manifest,
+                path: path.clone(),
+            })
+            .map_err(|err| match err {
+                CargoTomlError::Io(e) => Error::FileIo(path, e),
+                _ => Error::CargoToml(err),
+            })
     }
 
     fn metadata(&self) -> Result<&Table, ConfigError> {
@@ -194,7 +204,17 @@ impl Config {
             .compression(Compressor::from_str("gzip").unwrap());
         for file in &self.files()? {
             let options = file.generate_rpm_file_options();
-            builder = builder.with_file(file.source, options)?;
+
+            let file_source = [
+                PathBuf::from(file.source),
+                self.path.parent().unwrap().join(file.source),
+            ]
+            .iter()
+            .find(|v| v.exists())
+            .ok_or(ConfigError::AssetFileNotFound(file.source.to_string()))?
+            .to_owned();
+
+            builder = builder.with_file(file_source, options)?;
         }
 
         if let Some(release) = get_i64_from_metadata!("release") {
@@ -263,6 +283,13 @@ mod test {
         let config = Config::new("Cargo.toml").unwrap();
         let pkg = config.manifest.package.unwrap();
         assert_eq!(pkg.name, "cargo-generate-rpm");
+
+        assert!(matches!(Config::new("not_exist_path/Cargo.toml"),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_path/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound));
+        assert!(matches!(
+            Config::new("src/error.rs"),
+            Err(Error::CargoToml(_))
+        ));
     }
 
     #[test]
@@ -311,9 +338,15 @@ mod test {
         );
     }
 
-    // #[test]
-    // fn test_config_create_rpm_builder() {
-    //     let config = Config::new("Cargo.toml").unwrap();
-    //     let builder = config.create_rpm_builder("x86_64").unwrap();
-    // }
+    #[test]
+    fn test_config_create_rpm_builder() {
+        let config = Config::new("Cargo.toml").unwrap();
+        let builder = config.create_rpm_builder(None);
+
+        assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
+            matches!(builder, Ok(_))
+        } else {
+            matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path == "target/release/cargo-generate-rpm")
+        });
+    }
 }
