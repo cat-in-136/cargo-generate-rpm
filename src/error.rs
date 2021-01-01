@@ -1,6 +1,7 @@
 use cargo_toml::Error as CargoTomlError;
 use rpm::RPMError;
 use std::io::Error as IoError;
+use std::path::PathBuf;
 use thiserror;
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -13,6 +14,8 @@ pub enum ConfigError {
     AssetFileUndefined(usize, &'static str),
     #[error("{1} of {0}-th asset must be {2}")]
     AssetFileWrongType(usize, &'static str, &'static str),
+    #[error("Asset file not found: {0}")]
+    AssetFileNotFound(String),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -23,6 +26,8 @@ pub enum Error {
     Config(#[from] ConfigError),
     #[error(transparent)]
     Rpm(#[from] RPMError),
+    #[error("{1}: {0}")]
+    FileIo(PathBuf, #[source] IoError),
     #[error(transparent)]
     Io(#[from] IoError),
 }

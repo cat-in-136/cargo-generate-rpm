@@ -39,10 +39,12 @@ fn process(
     let target_file_name = target_file.unwrap_or(default_file_name);
     if let Some(parent_dir) = target_file_name.parent() {
         if !parent_dir.exists() {
-            create_dir_all(parent_dir)?;
+            create_dir_all(parent_dir)
+                .map_err(|err| Error::FileIo(parent_dir.to_path_buf(), err))?;
         }
     }
-    let mut f = File::create(target_file_name)?;
+    let mut f = File::create(&target_file_name)
+        .map_err(|err| Error::FileIo(target_file_name.to_path_buf(), err))?;
     rpm_pkg.write(&mut f)?;
 
     Ok(())

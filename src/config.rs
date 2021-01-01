@@ -1,4 +1,5 @@
 use crate::error::{ConfigError, Error};
+use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
 use rpm::{Compressor, RPMBuilder, RPMFileOptions};
 use std::env::consts::ARCH;
@@ -14,9 +15,16 @@ pub struct Config {
 
 impl Config {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let manifest = Manifest::from_path(path.as_ref())?;
         let path = path.as_ref().to_path_buf();
-        Ok(Self { manifest, path })
+        Manifest::from_path(&path)
+            .map(|manifest| Config {
+                manifest,
+                path: path.clone(),
+            })
+            .map_err(|err| match err {
+                CargoTomlError::Io(e) => Error::FileIo(path, e),
+                _ => Error::CargoToml(err),
+            })
     }
 
     fn metadata(&self) -> Result<&Table, ConfigError> {
@@ -197,11 +205,14 @@ impl Config {
         for file in &self.files()? {
             let options = file.generate_rpm_file_options();
 
-            let file_source = if Path::new(file.source).exists() {
-                PathBuf::from(file.source)
-            } else {
-                self.path.parent().unwrap().join(file.source)
-            };
+            let file_source = [
+                PathBuf::from(file.source),
+                self.path.parent().unwrap().join(file.source),
+            ]
+            .iter()
+            .find(|v| v.exists())
+            .ok_or(ConfigError::AssetFileNotFound(file.source.to_string()))?
+            .to_owned();
 
             builder = builder.with_file(file_source, options)?;
         }
@@ -272,6 +283,13 @@ mod test {
         let config = Config::new("Cargo.toml").unwrap();
         let pkg = config.manifest.package.unwrap();
         assert_eq!(pkg.name, "cargo-generate-rpm");
+
+        assert!(matches!(Config::new("not_exist_path/Cargo.toml"),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_path/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound));
+        assert!(matches!(
+            Config::new("src/error.rs"),
+            Err(Error::CargoToml(_))
+        ));
     }
 
     #[test]
@@ -320,9 +338,9 @@ mod test {
         );
     }
 
-    // #[test]
-    // fn test_config_create_rpm_builder() {
-    //     let config = Config::new("Cargo.toml").unwrap();
-    //     let builder = config.create_rpm_builder("x86_64").unwrap();
-    // }
+    #[test]
+    fn test_config_create_rpm_builder() {
+        let config = Config::new("Cargo.toml").unwrap();
+        config.create_rpm_builder(None).unwrap();
+    }
 }
