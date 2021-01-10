@@ -231,10 +231,10 @@ impl Config {
             builder = builder.pre_uninstall_script(pre_uninstall_script);
         }
         if let Some(post_install_script) = get_str_from_metadata!("post_install_script") {
-            builder = builder.pre_install_script(post_install_script);
+            builder = builder.post_install_script(post_install_script);
         }
         if let Some(post_uninstall_script) = get_str_from_metadata!("post_uninstall_script") {
-            builder = builder.pre_uninstall_script(post_uninstall_script);
+            builder = builder.post_uninstall_script(post_uninstall_script);
         }
 
         Ok(builder)
