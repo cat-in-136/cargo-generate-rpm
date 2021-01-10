@@ -85,7 +85,7 @@ fn parse_arg() -> Result<(Option<String>, Option<PathBuf>, Option<String>, AutoR
         std::process::exit(0);
     }
     let target_arch = opt_matches.opt_str("a");
-    let target_file = opt_matches.opt_str("o").map(|v| PathBuf::from(v));
+    let target_file = opt_matches.opt_str("o").map(PathBuf::from);
     let package = opt_matches.opt_str("p");
     let auto_req_mode = AutoReqMode::try_from(
         opt_matches

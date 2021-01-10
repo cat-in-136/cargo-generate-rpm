@@ -3,7 +3,6 @@ use rpm::RPMError;
 use std::ffi::OsString;
 use std::io::Error as IoError;
 use std::path::PathBuf;
-use thiserror;
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum ConfigError {
