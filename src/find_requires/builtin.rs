@@ -1,5 +1,6 @@
 use elf::types::{Class, Machine, ELFCLASS64, EM_FAKE_ALPHA, SHT_GNU_HASH, SHT_HASH};
 use elf::ParseError;
+use std::collections::BTreeSet;
 use std::io::Error as IoError;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
@@ -45,7 +46,7 @@ fn test_elf_info_new() {
     ElfInfo::new("/bin/sh").unwrap();
 }
 
-fn find_requires_by_ldd(path: &Path, marker: Option<&str>) -> Vec<String> {
+fn find_requires_by_ldd(path: &Path, marker: Option<&str>) -> BTreeSet<String> {
     fn skip_so_name(so_name: &str) -> bool {
         so_name.contains(".so")
             && (so_name.starts_with("ld.")
@@ -65,11 +66,13 @@ fn find_requires_by_ldd(path: &Path, marker: Option<&str>) -> Vec<String> {
     let mut s = String::new();
     process.stdout.unwrap().read_to_string(&mut s).unwrap();
 
-    let libraries = s
+    let mut requires = s
         .split("\n")
         .take_while(|&line| !line.trim().is_empty())
         .filter_map(|line| line.trim_start().splitn(2, " ").nth(0))
-        .filter(|&line| skip_so_name(line));
+        .filter(|&line| skip_so_name(line))
+        .map(&String::from)
+        .collect::<BTreeSet<_>>();
     let versioned_libraries = s
         .split("\n")
         .skip_while(|&line| !line.contains("Version information:"))
@@ -78,39 +81,31 @@ fn find_requires_by_ldd(path: &Path, marker: Option<&str>) -> Vec<String> {
         .skip(1)
         .take_while(|&line| line.contains(" => "))
         .filter_map(|line| line.trim_start().splitn(2, " => ").nth(0))
-        .filter(|&name| skip_so_name(name))
-        .collect::<Vec<_>>();
+        .filter(|&name| skip_so_name(name));
 
-    let mut requires = Vec::new();
-    for name in libraries {
-        requires.push(format!("{}(){}", name, marker.unwrap_or_default()));
-    }
     for name in versioned_libraries {
         if name.contains(" (") {
-            let without_version = format!(
+            // Insert "unversioned" library name
+            requires.insert(format!(
                 "{}(){}",
                 name.splitn(2, " ").nth(0).unwrap(),
                 marker.unwrap_or_default()
-            );
-            if !requires.contains(&without_version) {
-                requires.push(without_version);
-            }
+            ));
         }
-        requires.push(format!(
+        requires.insert(format!(
             "{}{}",
             name.replace(" ", ""),
             marker.unwrap_or_default()
-        ))
+        ));
     }
-    requires.sort();
     requires
 }
 
-fn find_requires_of_elf(path: &Path) -> Option<Vec<String>> {
+fn find_requires_of_elf(path: &Path) -> Option<BTreeSet<String>> {
     ElfInfo::new(&path).ok().and_then(|info| {
         let mut requires = find_requires_by_ldd(&path, info.marker());
         if info.got_gnu_hash && !info.got_hash {
-            requires.push("rtld(GNU_HASH)".to_string());
+            requires.insert("rtld(GNU_HASH)".to_string());
         }
         Some(requires)
     })
@@ -124,8 +119,8 @@ fn test_find_requires_of_elf() {
         .all(|v| v.contains(".so") || v == "rtld(GNU_HASH)"));
 }
 
-fn find_requires_of_shebang(path: &Path) -> Option<Vec<String>> {
-    (|path: &Path| -> Result<Option<Vec<String>>, std::io::Error> {
+fn find_require_of_shebang(path: &Path) -> Option<String> {
+    (|path: &Path| -> Result<Option<String>, std::io::Error> {
         let mut file = std::fs::File::open(path)?;
         let mut shebang = vec![0u8; 2];
         file.read_exact(&mut shebang)?;
@@ -142,7 +137,7 @@ fn find_requires_of_shebang(path: &Path) -> Option<Vec<String>> {
         };
 
         Ok(match interpreter {
-            Some(i) if Path::new(&i).exists() => Some(vec![i.to_string()]),
+            Some(i) if Path::new(&i).exists() => Some(i.to_string()),
             _ => None,
         })
     })(path)
@@ -150,8 +145,8 @@ fn find_requires_of_shebang(path: &Path) -> Option<Vec<String>> {
 }
 
 #[test]
-fn test_find_requires_of_shebang() {
-    find_requires_of_shebang(Path::new("/usr/bin/ldd")).unwrap();
+fn test_find_require_of_shebang() {
+    find_require_of_shebang(Path::new("/usr/bin/ldd")).unwrap();
 }
 
 #[cfg(unix)]
@@ -176,14 +171,16 @@ fn is_executable(path: &Path) -> bool {
 }
 
 /// find requires.
-pub(super) fn find_requires<P: AsRef<Path>>(path: &[P]) -> Result<Vec<String>, IoError> {
-    let mut requires = Vec::new();
+pub(super) fn find_requires<P: AsRef<Path>>(
+    path: &[P],
+) -> Result<impl IntoIterator<Item = String>, IoError> {
+    let mut requires = BTreeSet::new();
     for p in path {
         if is_executable(p.as_ref()) {
-            if let Some(mut vec) = find_requires_of_elf(p.as_ref()) {
-                requires.append(&mut vec)
-            } else if let Some(mut vec) = find_requires_of_shebang(p.as_ref()) {
-                requires.append(&mut vec)
+            if let Some(elf_requires) = find_requires_of_elf(p.as_ref()) {
+                requires.extend(elf_requires);
+            } else if let Some(shebang_require) = find_require_of_shebang(p.as_ref()) {
+                requires.insert(shebang_require);
             }
         }
     }
