@@ -1,7 +1,8 @@
 use std::io::Error as IoError;
-use std::path::{Iter, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 mod script;
+mod builtin;
 
 const RPM_FIND_REQUIRES: &str = "/usr/lib/rpm/find-requires";
 
@@ -12,6 +13,8 @@ pub enum FindRequiresMode {
     Auto,
     /// `find-requires` script
     Script(PathBuf),
+    // /// Builtin
+    // BuiltIn,
 }
 
 /// Find requires
