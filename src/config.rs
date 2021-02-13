@@ -1,7 +1,8 @@
 use crate::error::{ConfigError, Error};
+use crate::find_requires::{find_requires, FindRequiresMode};
 use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
-use rpm::{Compressor, RPMBuilder, RPMFileOptions};
+use rpm::{Compressor, Dependency, RPMBuilder, RPMFileOptions};
 use std::env::consts::ARCH;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -199,10 +200,11 @@ impl Config {
                 .ok_or(ConfigError::Missing("package.description"))?
                 .as_str(),
         );
+        let files = self.files()?;
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str("gzip").unwrap());
-        for file in &self.files()? {
+        for file in &files {
             let options = file.generate_rpm_file_options();
 
             let file_source = [
@@ -235,6 +237,17 @@ impl Config {
         }
         if let Some(post_uninstall_script) = get_str_from_metadata!("post_uninstall_script") {
             builder = builder.post_uninstall_script(post_uninstall_script);
+        }
+
+        for requires in find_requires(
+            files
+                .iter()
+                .map(|v| Path::new(v.source))
+                .collect::<Vec<_>>()
+                .as_slice(),
+            FindRequiresMode::Auto,
+        )? {
+            builder = builder.requires(Dependency::any(requires));
         }
 
         Ok(builder)

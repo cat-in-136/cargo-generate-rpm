@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 mod config;
 mod error;
+mod find_requires;
 
 fn process(
     target_arch: Option<String>,
