@@ -19,11 +19,21 @@ pub enum ConfigError {
 }
 
 #[derive(thiserror::Error, Debug)]
+pub enum AutoReqError {
+    #[error("Wrong auto-req mode")]
+    WrongMode,
+    #[error(transparent)]
+    Io(#[from] IoError)
+}
+
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Cargo.toml: {0}")]
     CargoToml(#[from] CargoTomlError),
     #[error(transparent)]
     Config(#[from] ConfigError),
+    #[error(transparent)]
+    AutoReq(#[from] AutoReqError),
     #[error(transparent)]
     Rpm(#[from] RPMError),
     #[error("{1}: {0}")]

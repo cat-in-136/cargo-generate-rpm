@@ -171,16 +171,14 @@ fn is_executable(path: &Path) -> bool {
 }
 
 /// find requires.
-pub(super) fn find_requires<P: AsRef<Path>>(
-    path: &[P],
-) -> Result<impl IntoIterator<Item = String>, IoError> {
-    let mut requires = BTreeSet::new();
+pub(super) fn find_requires<P: AsRef<Path>>(path: &[P]) -> Result<Vec<String>, IoError> {
+    let mut requires = Vec::new();
     for p in path {
         if is_executable(p.as_ref()) {
             if let Some(elf_requires) = find_requires_of_elf(p.as_ref()) {
                 requires.extend(elf_requires);
             } else if let Some(shebang_require) = find_require_of_shebang(p.as_ref()) {
-                requires.insert(shebang_require);
+                requires.push(shebang_require);
             }
         }
     }

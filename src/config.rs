@@ -1,5 +1,5 @@
+use crate::auto_req::{find_requires, AutoReqMode};
 use crate::error::{ConfigError, Error};
-use crate::find_requires::{find_requires, FindRequiresMode};
 use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
 use rpm::{Compressor, Dependency, RPMBuilder, RPMFileOptions};
@@ -142,7 +142,11 @@ impl Config {
         Ok(files)
     }
 
-    pub fn create_rpm_builder(&self, target_arch: Option<String>) -> Result<RPMBuilder, Error> {
+    pub fn create_rpm_builder(
+        &self,
+        target_arch: Option<String>,
+        auto_req_mode: AutoReqMode,
+    ) -> Result<RPMBuilder, Error> {
         let metadata = self.metadata()?;
         macro_rules! get_str_from_metadata {
             ($name:expr) => {
@@ -245,7 +249,7 @@ impl Config {
                 .map(|v| Path::new(v.source))
                 .collect::<Vec<_>>()
                 .as_slice(),
-            FindRequiresMode::Auto,
+            auto_req_mode,
         )? {
             builder = builder.requires(Dependency::any(requires));
         }
@@ -354,7 +358,7 @@ mod test {
     #[test]
     fn test_config_create_rpm_builder() {
         let config = Config::new("Cargo.toml").unwrap();
-        let builder = config.create_rpm_builder(None);
+        let builder = config.create_rpm_builder(None, AutoReqMode::Disabled);
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
             matches!(builder, Ok(_))
