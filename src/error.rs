@@ -1,5 +1,6 @@
 use cargo_toml::Error as CargoTomlError;
 use rpm::RPMError;
+use std::ffi::OsString;
 use std::io::Error as IoError;
 use std::path::PathBuf;
 use thiserror;
@@ -22,8 +23,10 @@ pub enum ConfigError {
 pub enum AutoReqError {
     #[error("Wrong auto-req mode")]
     WrongMode,
+    #[error("Failed to execute `{}`: {1}", .0.clone().into_string().unwrap_or_default())]
+    ProcessError(OsString, #[source] IoError),
     #[error(transparent)]
-    Io(#[from] IoError)
+    Io(#[from] IoError),
 }
 
 #[derive(thiserror::Error, Debug)]

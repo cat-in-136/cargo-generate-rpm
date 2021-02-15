@@ -1,7 +1,8 @@
+use crate::error::AutoReqError;
 use elf::types::{Class, Machine, ELFCLASS64, EM_FAKE_ALPHA, SHT_GNU_HASH, SHT_HASH};
 use elf::ParseError;
 use std::collections::BTreeSet;
-use std::io::Error as IoError;
+use std::ffi::OsString;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -46,7 +47,10 @@ fn test_elf_info_new() {
     ElfInfo::new("/bin/sh").unwrap();
 }
 
-fn find_requires_by_ldd(path: &Path, marker: Option<&str>) -> BTreeSet<String> {
+fn find_requires_by_ldd(
+    path: &Path,
+    marker: Option<&str>,
+) -> Result<BTreeSet<String>, AutoReqError> {
     fn skip_so_name(so_name: &str) -> bool {
         so_name.contains(".so")
             && (so_name.starts_with("ld.")
@@ -61,10 +65,14 @@ fn find_requires_by_ldd(path: &Path, marker: Option<&str>) -> BTreeSet<String> {
         .arg(path.as_os_str())
         .stdout(Stdio::piped())
         .spawn()
-        .unwrap();
+        .map_err(|e| AutoReqError::ProcessError(OsString::from("ldd"), e))?;
 
     let mut s = String::new();
-    process.stdout.unwrap().read_to_string(&mut s).unwrap();
+    process
+        .stdout
+        .unwrap()
+        .read_to_string(&mut s)
+        .map_err(|e| AutoReqError::ProcessError(OsString::from("ldd"), e))?;
 
     let mut requires = s
         .split("\n")
@@ -83,49 +91,49 @@ fn find_requires_by_ldd(path: &Path, marker: Option<&str>) -> BTreeSet<String> {
         .filter_map(|line| line.trim_start().splitn(2, " => ").nth(0))
         .filter(|&name| skip_so_name(name));
 
+    let marker = marker.unwrap_or_default();
     for name in versioned_libraries {
         if name.contains(" (") {
             // Insert "unversioned" library name
             requires.insert(format!(
                 "{}(){}",
                 name.splitn(2, " ").nth(0).unwrap(),
-                marker.unwrap_or_default()
+                marker
             ));
         }
-        requires.insert(format!(
-            "{}{}",
-            name.replace(" ", ""),
-            marker.unwrap_or_default()
-        ));
+        requires.insert(format!("{}{}", name.replace(" ", ""), marker));
     }
-    requires
+    Ok(requires)
 }
 
-fn find_requires_of_elf(path: &Path) -> Option<BTreeSet<String>> {
-    ElfInfo::new(&path).ok().and_then(|info| {
-        let mut requires = find_requires_by_ldd(&path, info.marker());
+fn find_requires_of_elf(path: &Path) -> Result<Option<BTreeSet<String>>, AutoReqError> {
+    if let Ok(info) = ElfInfo::new(&path) {
+        let mut requires = find_requires_by_ldd(&path, info.marker())?;
         if info.got_gnu_hash && !info.got_hash {
             requires.insert("rtld(GNU_HASH)".to_string());
         }
-        Some(requires)
-    })
+        Ok(Some(requires))
+    } else {
+        Ok(None)
+    }
 }
 
 #[test]
 fn test_find_requires_of_elf() {
-    let requires = find_requires_of_elf(Path::new("/bin/sh")).unwrap();
+    let requires = find_requires_of_elf(Path::new("/bin/sh")).unwrap().unwrap();
     assert!(requires
         .iter()
         .all(|v| v.contains(".so") || v == "rtld(GNU_HASH)"));
+    assert!(matches!(find_requires_of_elf(Path::new(file!())), Ok(None)));
 }
 
-fn find_require_of_shebang(path: &Path) -> Option<String> {
-    (|path: &Path| -> Result<Option<String>, std::io::Error> {
-        let mut file = std::fs::File::open(path)?;
-        let mut shebang = vec![0u8; 2];
-        file.read_exact(&mut shebang)?;
-        let interpreter = if shebang == [b'#', b'!'] {
-            let mut read = BufReader::new(file);
+fn find_require_of_shebang(path: &Path) -> Result<Option<String>, AutoReqError> {
+    let interpreter = {
+        let file = std::fs::File::open(path)?;
+        let mut read = BufReader::new(file);
+        let mut shebang = [0u8; 2];
+        let shebang_size = read.read(&mut shebang)?;
+        if shebang_size == 2 || shebang == [b'#', b'!'] {
             let mut line = String::new();
             read.read_line(&mut line)?;
             line.trim()
@@ -134,19 +142,25 @@ fn find_require_of_shebang(path: &Path) -> Option<String> {
                 .map(&String::from)
         } else {
             None
-        };
+        }
+    };
 
-        Ok(match interpreter {
-            Some(i) if Path::new(&i).exists() => Some(i.to_string()),
-            _ => None,
-        })
-    })(path)
-    .unwrap_or_default()
+    Ok(match interpreter {
+        Some(i) if Path::new(&i).exists() => Some(i.to_string()),
+        _ => None,
+    })
 }
 
 #[test]
 fn test_find_require_of_shebang() {
-    find_require_of_shebang(Path::new("/usr/bin/ldd")).unwrap();
+    assert!(matches!(
+        find_require_of_shebang(Path::new("/usr/bin/ldd")),
+        Ok(Some(_))
+    ));
+    assert!(matches!(
+        find_require_of_shebang(Path::new(file!())),
+        Ok(None)
+    ));
 }
 
 #[cfg(unix)]
@@ -171,13 +185,13 @@ fn is_executable(path: &Path) -> bool {
 }
 
 /// find requires.
-pub(super) fn find_requires<P: AsRef<Path>>(path: &[P]) -> Result<Vec<String>, IoError> {
+pub(super) fn find_requires<P: AsRef<Path>>(path: &[P]) -> Result<Vec<String>, AutoReqError> {
     let mut requires = Vec::new();
-    for p in path {
-        if is_executable(p.as_ref()) {
-            if let Some(elf_requires) = find_requires_of_elf(p.as_ref()) {
+    for p in path.iter().map(|v| v.as_ref()) {
+        if is_executable(p) {
+            if let Some(elf_requires) = find_requires_of_elf(p)? {
                 requires.extend(elf_requires);
-            } else if let Some(shebang_require) = find_require_of_shebang(p.as_ref()) {
+            } else if let Some(shebang_require) = find_require_of_shebang(p)? {
                 requires.push(shebang_require);
             }
         }
