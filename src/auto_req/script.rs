@@ -38,6 +38,12 @@ pub(super) fn find_requires<P: AsRef<Path>, S: AsRef<OsStr>>(
 
 #[test]
 fn test_find_requires() {
-    assert_eq!(find_requires(&[file!()], "/bin/cat").unwrap(), vec![file!().to_string()]);
-    assert!(matches!(find_requires(&[file!()], "not-exist"), Err(AutoReqError::ProcessError(_, _))));
+    assert_eq!(
+        find_requires(&[file!()], "/bin/cat").unwrap(),
+        vec![file!().to_string()]
+    );
+    assert!(matches!(
+        find_requires(&[file!()], "not-exist"),
+        Err(AutoReqError::ProcessError(_, _))
+    ));
 }

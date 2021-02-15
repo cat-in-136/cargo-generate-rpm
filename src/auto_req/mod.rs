@@ -60,8 +60,8 @@ pub fn test_try_from_for_auto_req_mode() {
 }
 
 /// Find requires
-pub fn find_requires<P: AsRef<Path>>(
-    files: &[P],
+pub fn find_requires<T: IntoIterator<Item = P>, P: AsRef<Path>>(
+    files: T,
     mode: AutoReqMode,
 ) -> Result<Vec<String>, AutoReqError> {
     match mode {
@@ -73,7 +73,12 @@ pub fn find_requires<P: AsRef<Path>>(
             }
         }
         AutoReqMode::Disabled => Ok(Vec::new()),
-        AutoReqMode::Script(script) => Ok(script::find_requires(files, script.as_path())?),
-        AutoReqMode::BuiltIn => Ok(builtin::find_requires(files)?),
+        AutoReqMode::Script(script) => Ok(script::find_requires(
+            files.into_iter().collect::<Vec<_>>().as_slice(),
+            script.as_path(),
+        )?),
+        AutoReqMode::BuiltIn => Ok(builtin::find_requires(
+            files.into_iter().collect::<Vec<_>>().as_slice(),
+        )?),
     }
 }

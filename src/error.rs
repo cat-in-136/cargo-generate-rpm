@@ -17,6 +17,8 @@ pub enum ConfigError {
     AssetFileWrongType(usize, &'static str, &'static str),
     #[error("Asset file not found: {0}")]
     AssetFileNotFound(String),
+    #[error("Invalid dependency version specified for {0}")]
+    WrongDependencyVersion(String),
 }
 
 #[derive(thiserror::Error, Debug)]

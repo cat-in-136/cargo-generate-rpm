@@ -142,6 +142,28 @@ impl Config {
         Ok(files)
     }
 
+    fn table_to_dependencies(table: &Table) -> Result<Vec<Dependency>, ConfigError> {
+        let mut dependencies = Vec::with_capacity(table.len());
+        for (key, value) in table {
+            let ver = value
+                .as_str()
+                .ok_or(ConfigError::WrongDependencyVersion(key.clone()))?
+                .trim();
+            let ver_vec = ver.trim().split_whitespace().collect::<Vec<_>>();
+            let dependency = match ver_vec.as_slice() {
+                [] | ["*"] => Ok(Dependency::any(key)),
+                ["<", ver] => Ok(Dependency::less(key.as_str(), ver.trim())),
+                ["<=", ver] => Ok(Dependency::less_eq(key.as_str(), ver.trim())),
+                ["=", ver] | [ver] => Ok(Dependency::eq(key.as_str(), ver.trim())),
+                [">", ver] => Ok(Dependency::greater(key.as_str(), ver.trim())),
+                [">=", ver] => Ok(Dependency::greater_eq(key.as_str(), ver.trim())),
+                _ => Err(ConfigError::WrongDependencyVersion(key.clone())),
+            }?;
+            dependencies.push(dependency);
+        }
+        Ok(dependencies)
+    }
+
     pub fn create_rpm_builder(
         &self,
         target_arch: Option<String>,
@@ -172,6 +194,19 @@ impl Config {
                 } else {
                     None
                 } as Option<i64>
+            }
+        };
+        macro_rules! get_table_from_metadata {
+            ($name:expr) => {
+                if let Some(val) = metadata.get($name) {
+                    Some(val.as_table()
+                        .ok_or(ConfigError::WrongType(
+                            concat!("package.metadata.generate-rpm.", $name),
+                            "table"
+                        ))?)
+                } else {
+                    None
+                } as Option<&Table>
             }
         };
 
@@ -243,15 +278,28 @@ impl Config {
             builder = builder.post_uninstall_script(post_uninstall_script);
         }
 
-        for requires in find_requires(
-            files
-                .iter()
-                .map(|v| Path::new(v.source))
-                .collect::<Vec<_>>()
-                .as_slice(),
-            auto_req_mode,
-        )? {
+        if let Some(requires) = get_table_from_metadata!("requires") {
+            for dependency in Self::table_to_dependencies(requires)? {
+                builder = builder.requires(dependency);
+            }
+        }
+        for requires in find_requires(files.iter().map(|v| Path::new(v.source)), auto_req_mode)? {
             builder = builder.requires(Dependency::any(requires));
+        }
+        if let Some(obsoletes) = get_table_from_metadata!("obsoletes") {
+            for dependency in Self::table_to_dependencies(obsoletes)? {
+                builder = builder.obsoletes(dependency);
+            }
+        }
+        if let Some(conflicts) = get_table_from_metadata!("conflicts") {
+            for dependency in Self::table_to_dependencies(conflicts)? {
+                builder = builder.conflicts(dependency);
+            }
+        }
+        if let Some(provides) = get_table_from_metadata!("provides") {
+            for dependency in Self::table_to_dependencies(provides)? {
+                builder = builder.provides(dependency);
+            }
         }
 
         Ok(builder)
@@ -294,6 +342,7 @@ impl FileInfo<'_, '_, '_, '_> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use cargo_toml::Value;
 
     #[test]
     fn test_config_new() {
@@ -353,6 +402,46 @@ mod test {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn test_table_to_dependencies() {
+        let mut table = Table::new();
+        [
+            ("any1", ""),
+            ("any2", "*"),
+            ("less", "< 1.0"),
+            ("lesseq", "<= 1.0"),
+            ("eq", "= 1.0"),
+            ("greater", "> 1.0"),
+            ("greatereq", "<= 1.0"),
+        ]
+        .iter()
+        .for_each(|(k, v)| {
+            table.insert(k.to_string(), Value::String(v.to_string()));
+        });
+        assert_eq!(Config::table_to_dependencies(&table).unwrap().len(), 7);
+
+        // table.clear();
+        table.insert("error".to_string(), Value::Integer(1));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+
+        table.clear();
+        table.insert("error".to_string(), Value::String("!= 1".to_string()));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+
+        table.clear();
+        table.insert("error".to_string(), Value::String("> 1 1".to_string()));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
     }
 
     #[test]
