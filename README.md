@@ -48,6 +48,47 @@ This command obtains RPM metadata from [the `Cargo.toml` file](https://doc.rust-
 * pre_uninstall_script: optional string of pre_uninstall_script.
 * post_install_script: optional string of post_install_script.
 * post_uninstall_script: optional string of post_uninstall_script.
+* requires: optional list of Requires
+* auto-req: optional string `"no"` 
+* obsoletes: optional list of Obsoletes
+* conflicts: optional list of Conflicts
+* provides: optional list of Provides
+
+### `[package.metadata.generate-rpm.{requires,obsoletes,conflicts,provides}]` options
+
+Dependencies such as "requires", "obsoletes", "conflicts", and "provides" shall be written in similar way as dependencies in Cargo.toml.
+
+```toml
+[package.metadata.generate-rpm.requires]
+alternative = "*"
+filesystem = ">= 3"
+```
+
+This example states that the package requires with any versions of `alternative` and all versions of `filesystem` 3.0 or higher.
+
+Following table lists the version comparisons:
+
+|Comparison|Meaning|
+|----------|-------|
+|`package = "*"`|A package at any version number|
+|`package = "< version"`|A package with a version number less than version|
+|`package = "<= version"`| A package with a version number less than or equal to version|
+|`package = "= version"`| A package with a version number equal to version|
+|`package = "> version"`|A package with a version number greater than version|
+|`package = ">= version"`| A package with a version number greater than or equal to version|
+
+This command automatically determines what shared libraries a package requires.
+There may be times when the automatic dependency processing is not desired.
+In this case, the package author may set `package.metadata.generate-rpm.auto-req` to `"no"` or
+the user who executes this command may specify command line option `--auto-req no`.
+
+ * `--auto-req auto`: The following rules are used to determine the preferred automatic dependency process:
+   * If `package.metadata.generate-rpm.auto-req` set to `"no"` or `"disabled"`, the process is disabled.
+   * If `/usr/lib/rpm/find-requires` exists, it is used (same behaviour as `--auto-req /usr/lib/rpm/find-requires`).
+   * Otherwise, builtin procedure is used (same behaviour as `--auto-req buitin`).
+ * `--auto-req builtin`: the builtin procedure using `ldd` is used.
+ * `--auto-req /path/to/find-requires`: the specified external program is used. This behavior is the same as the original `rpmbuild`. 
+ * `--auto-req no`: the process is disabled.
 
 ## Advanced Usage
 
