@@ -49,7 +49,7 @@ This command obtains RPM metadata from [the `Cargo.toml` file](https://doc.rust-
 * post_install_script: optional string of post_install_script.
 * post_uninstall_script: optional string of post_uninstall_script.
 * requires: optional list of Requires
-* auto-req: optional string `"no"` 
+* auto-req: optional string `"no"` to disable the automatic dependency process
 * obsoletes: optional list of Obsoletes
 * conflicts: optional list of Conflicts
 * provides: optional list of Provides
