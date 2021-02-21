@@ -26,7 +26,7 @@ impl TryFrom<String> for AutoReqMode {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
             "auto" | "" => Ok(AutoReqMode::Auto),
-            "disabled" => Ok(AutoReqMode::Disabled),
+            "no" | "disabled" => Ok(AutoReqMode::Disabled),
             "builtin" => Ok(AutoReqMode::BuiltIn),
             "find-requires" => Ok(AutoReqMode::Script(PathBuf::from(RPM_FIND_REQUIRES))),
             v if Path::new(v).exists() => Ok(AutoReqMode::Script(PathBuf::from(v))),
@@ -37,22 +37,23 @@ impl TryFrom<String> for AutoReqMode {
 
 #[test]
 pub fn test_try_from_for_auto_req_mode() {
-    assert_eq!(
-        AutoReqMode::try_from("auto".to_string()).unwrap(),
-        AutoReqMode::Auto
-    );
-    assert_eq!(
-        AutoReqMode::try_from(String::new()).unwrap(),
-        AutoReqMode::Auto
-    );
-    assert_eq!(
-        AutoReqMode::try_from("disabled".to_string()).unwrap(),
-        AutoReqMode::Disabled
-    );
-    assert_eq!(
-        AutoReqMode::try_from("find-requires".to_string()).unwrap(),
-        AutoReqMode::Script(PathBuf::from(RPM_FIND_REQUIRES))
-    );
+    for (text, auto_req_mode) in &[
+        ("auto", AutoReqMode::Auto),
+        ("", AutoReqMode::Auto),
+        ("no", AutoReqMode::Disabled),
+        ("disabled", AutoReqMode::Disabled),
+        (
+            "find-requires",
+            AutoReqMode::Script(PathBuf::from(RPM_FIND_REQUIRES)),
+        ),
+        (file!(), AutoReqMode::Script(PathBuf::from(file!()))),
+    ] {
+        assert_eq!(
+            AutoReqMode::try_from(text.to_string()).unwrap(),
+            *auto_req_mode
+        );
+    }
+
     assert!(matches!(
         AutoReqMode::try_from("invalid-value".to_string()),
         Err(AutoReqError::WrongMode)

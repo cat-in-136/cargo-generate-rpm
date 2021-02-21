@@ -73,7 +73,7 @@ fn main() {
         "",
         "auto-req",
         "set automatic dependency processing mode, \
-         auto(Default), disabled, builtin, /path/to/find-requires",
+         auto(Default), no, builtin, /path/to/find-requires",
         "MODE",
     );
     let opt_matches = opts.parse(env::args().skip(1)).unwrap_or_else(|err| {

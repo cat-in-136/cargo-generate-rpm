@@ -283,7 +283,16 @@ impl Config {
                 builder = builder.requires(dependency);
             }
         }
-        for requires in find_requires(files.iter().map(|v| Path::new(v.source)), auto_req_mode)? {
+        let auto_req = if auto_req_mode == AutoReqMode::Auto
+            && matches!(
+                get_str_from_metadata!("auto-req"),
+                Some("no") | Some("disabled")
+            ) {
+            AutoReqMode::Disabled
+        } else {
+            auto_req_mode
+        };
+        for requires in find_requires(files.iter().map(|v| Path::new(v.source)), auto_req)? {
             builder = builder.requires(Dependency::any(requires));
         }
         if let Some(obsoletes) = get_table_from_metadata!("obsoletes") {
