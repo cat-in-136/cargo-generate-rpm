@@ -10,7 +10,7 @@ pub enum ConfigError {
     Missing(&'static str),
     #[error("Field {0} must be {1}")]
     WrongType(&'static str, &'static str),
-    #[error("{0} of {1}-th asset is undefined")]
+    #[error("{1} of {0}-th asset is undefined")]
     AssetFileUndefined(usize, &'static str),
     #[error("{1} of {0}-th asset must be {2}")]
     AssetFileWrongType(usize, &'static str, &'static str),
