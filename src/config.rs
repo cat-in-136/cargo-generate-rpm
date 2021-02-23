@@ -154,7 +154,7 @@ impl Config {
                 [] | ["*"] => Ok(Dependency::any(key)),
                 ["<", ver] => Ok(Dependency::less(key.as_str(), ver.trim())),
                 ["<=", ver] => Ok(Dependency::less_eq(key.as_str(), ver.trim())),
-                ["=", ver] | [ver] => Ok(Dependency::eq(key.as_str(), ver.trim())),
+                ["=", ver] => Ok(Dependency::eq(key.as_str(), ver.trim())),
                 [">", ver] => Ok(Dependency::greater(key.as_str(), ver.trim())),
                 [">=", ver] => Ok(Dependency::greater_eq(key.as_str(), ver.trim())),
                 _ => Err(ConfigError::WrongDependencyVersion(key.clone())),
@@ -415,6 +415,10 @@ mod test {
 
     #[test]
     fn test_table_to_dependencies() {
+        fn dependency_to_u8_slice(dep: &Dependency) -> &[u8] {
+            unsafe { std::mem::transmute_copy(dep) }
+        }
+
         let mut table = Table::new();
         [
             ("any1", ""),
@@ -429,10 +433,33 @@ mod test {
         .for_each(|(k, v)| {
             table.insert(k.to_string(), Value::String(v.to_string()));
         });
-        assert_eq!(Config::table_to_dependencies(&table).unwrap().len(), 7);
+
+        assert_eq!(
+            Config::table_to_dependencies(&table)
+                .unwrap()
+                .iter()
+                .map(&dependency_to_u8_slice)
+                .collect::<Vec<_>>(),
+            vec![
+                dependency_to_u8_slice(&Dependency::any("any1")),
+                dependency_to_u8_slice(&Dependency::any("any2")),
+                dependency_to_u8_slice(&Dependency::eq("eq", "1.0")),
+                dependency_to_u8_slice(&Dependency::greater("greater", "1.0")),
+                dependency_to_u8_slice(&Dependency::greater_eq("greatereq", "1.0")),
+                dependency_to_u8_slice(&Dependency::less("less", "1.0")),
+                dependency_to_u8_slice(&Dependency::less_eq("lesseq", "1.0")),
+            ]
+        );
 
         // table.clear();
         table.insert("error".to_string(), Value::Integer(1));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+
+        table.clear();
+        table.insert("error".to_string(), Value::String("1".to_string()));
         assert!(matches!(
             Config::table_to_dependencies(&table),
             Err(ConfigError::WrongDependencyVersion(_))

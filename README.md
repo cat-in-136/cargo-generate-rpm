@@ -77,6 +77,9 @@ Following table lists the version comparisons:
 |`package = "> version"`|A package with a version number greater than version|
 |`package = ">= version"`| A package with a version number greater than or equal to version|
 
+It is necessary to place a space between version and symbols such as `<`, `<=`, etc...
+`package = "version"` is not accepted, instead use `package = "= version"`.
+
 This command automatically determines what shared libraries a package requires.
 There may be times when the automatic dependency processing is not desired.
 In this case, the package author may set `package.metadata.generate-rpm.auto-req` to `"no"` or
