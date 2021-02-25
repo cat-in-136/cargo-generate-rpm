@@ -20,7 +20,7 @@ pub enum ConfigError {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error(transparent)]
+    #[error("Cargo.toml: {0}")]
     CargoToml(#[from] CargoTomlError),
     #[error(transparent)]
     Config(#[from] ConfigError),
