@@ -74,13 +74,10 @@ fn find_requires_by_ldd(
         .read_to_string(&mut s)
         .map_err(|e| AutoReqError::ProcessError(OsString::from("ldd"), e))?;
 
-    let mut requires = s
+    let unversioned_libraries = s
         .split("\n")
         .take_while(|&line| !line.trim().is_empty())
-        .filter_map(|line| line.trim_start().splitn(2, " ").nth(0))
-        .filter(|&line| skip_so_name(line))
-        .map(&String::from)
-        .collect::<BTreeSet<_>>();
+        .filter_map(|line| line.trim_start().splitn(2, " ").nth(0));
     let versioned_libraries = s
         .split("\n")
         .skip_while(|&line| !line.contains("Version information:"))
@@ -88,11 +85,15 @@ fn find_requires_by_ldd(
         .skip_while(|&line| !line.contains(path.to_str().unwrap()))
         .skip(1)
         .take_while(|&line| line.contains(" => "))
-        .filter_map(|line| line.trim_start().splitn(2, " => ").nth(0))
-        .filter(|&name| skip_so_name(name));
+        .filter_map(|line| line.trim_start().splitn(2, " => ").nth(0));
 
     let marker = marker.unwrap_or_default();
-    for name in versioned_libraries {
+    let mut requires = BTreeSet::new();
+    for name in unversioned_libraries
+        .into_iter()
+        .chain(versioned_libraries.into_iter())
+        .filter(|&name| skip_so_name(name))
+    {
         if name.contains(" (") {
             // Insert "unversioned" library name
             requires.insert(format!(
@@ -100,8 +101,10 @@ fn find_requires_by_ldd(
                 name.splitn(2, " ").nth(0).unwrap(),
                 marker
             ));
+            requires.insert(format!("{}{}", name.replace(" ", ""), marker));
+        } else {
+            requires.insert(format!("{}(){}", name.replace(" ", ""), marker));
         }
-        requires.insert(format!("{}{}", name.replace(" ", ""), marker));
     }
     Ok(requires)
 }
