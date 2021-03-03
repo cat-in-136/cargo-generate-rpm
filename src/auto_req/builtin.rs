@@ -74,6 +74,13 @@ fn find_requires_by_ldd(
         .read_to_string(&mut s)
         .map_err(|e| AutoReqError::ProcessError(OsString::from("ldd"), e))?;
 
+    let mut requires = s
+        .split("\n")
+        .take_while(|&line| !line.trim().is_empty())
+        .filter_map(|line| line.trim_start().splitn(2, " ").nth(0))
+        .filter(|&line| skip_so_name(line))
+        .map(&String::from)
+        .collect::<BTreeSet<_>>();
     let versioned_libraries = s
         .split("\n")
         .skip_while(|&line| !line.contains("Version information:"))
@@ -85,7 +92,6 @@ fn find_requires_by_ldd(
         .filter(|&name| skip_so_name(name));
 
     let marker = marker.unwrap_or_default();
-    let mut requires = BTreeSet::new();
     for name in versioned_libraries {
         if name.contains(" (") {
             // Insert "unversioned" library name
