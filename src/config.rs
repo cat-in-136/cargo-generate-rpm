@@ -215,15 +215,12 @@ impl Config {
             .package
             .as_ref()
             .ok_or(ConfigError::Missing("package"))?;
-        let name = get_str_from_metadata!("name").unwrap_or_else(||pkg.name.as_str());
-        let version = get_str_from_metadata!("version").unwrap_or_else(||pkg.version.as_str());
-        let license = get_str_from_metadata!("license").unwrap_or(
-            pkg.license
-                .as_ref()
-                .ok_or(ConfigError::Missing("package.license"))?
-                .as_str(),
-        );
-        let arch = target_arch.unwrap_or_else(||
+        let name = get_str_from_metadata!("name").unwrap_or_else(|| pkg.name.as_str());
+        let version = get_str_from_metadata!("version").unwrap_or_else(|| pkg.version.as_str());
+        let license = get_str_from_metadata!("license")
+            .or_else(|| pkg.license.as_ref().map(|v| v.as_ref()))
+            .ok_or(ConfigError::Missing("package.license"))?;
+        let arch = target_arch.unwrap_or_else(|| {
             match ARCH {
                 "x86" => "i586",
                 "arm" => "armhfp",
@@ -231,14 +228,11 @@ impl Config {
                 "powerpc64" => "ppc64",
                 _ => ARCH,
             }
-            .to_string(),
-        );
-        let desc = get_str_from_metadata!("summary").unwrap_or(
-            pkg.description
-                .as_ref()
-                .ok_or(ConfigError::Missing("package.description"))?
-                .as_str(),
-        );
+            .to_string()
+        });
+        let desc = get_str_from_metadata!("summary")
+            .or_else(|| pkg.description.as_ref().map(|v| v.as_ref()))
+            .ok_or(ConfigError::Missing("package.description"))?;
         let files = self.files()?;
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
@@ -252,7 +246,7 @@ impl Config {
             ]
             .iter()
             .find(|v| v.exists())
-            .ok_or_else(||ConfigError::AssetFileNotFound(file.source.to_string()))?
+            .ok_or_else(|| ConfigError::AssetFileNotFound(file.source.to_string()))?
             .to_owned();
 
             builder = builder.with_file(file_source, options)?;
