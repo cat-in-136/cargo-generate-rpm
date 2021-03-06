@@ -82,6 +82,7 @@ fn main() {
     });
     if opt_matches.opt_present("h") {
         println!("{}", opts.usage(&*format!("Usage: {} [options]", program)));
+        std::process::exit(0);
     }
     let target_arch = opt_matches.opt_str("a");
     let target_file = opt_matches.opt_str("o").map(|v| PathBuf::from(v));
