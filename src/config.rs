@@ -1,7 +1,8 @@
+use crate::auto_req::{find_requires, AutoReqMode};
 use crate::error::{ConfigError, Error};
 use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
-use rpm::{Compressor, RPMBuilder, RPMFileOptions};
+use rpm::{Compressor, Dependency, RPMBuilder, RPMFileOptions};
 use std::env::consts::ARCH;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -141,7 +142,33 @@ impl Config {
         Ok(files)
     }
 
-    pub fn create_rpm_builder(&self, target_arch: Option<String>) -> Result<RPMBuilder, Error> {
+    fn table_to_dependencies(table: &Table) -> Result<Vec<Dependency>, ConfigError> {
+        let mut dependencies = Vec::with_capacity(table.len());
+        for (key, value) in table {
+            let ver = value
+                .as_str()
+                .ok_or(ConfigError::WrongDependencyVersion(key.clone()))?
+                .trim();
+            let ver_vec = ver.trim().split_whitespace().collect::<Vec<_>>();
+            let dependency = match ver_vec.as_slice() {
+                [] | ["*"] => Ok(Dependency::any(key)),
+                ["<", ver] => Ok(Dependency::less(key.as_str(), ver.trim())),
+                ["<=", ver] => Ok(Dependency::less_eq(key.as_str(), ver.trim())),
+                ["=", ver] => Ok(Dependency::eq(key.as_str(), ver.trim())),
+                [">", ver] => Ok(Dependency::greater(key.as_str(), ver.trim())),
+                [">=", ver] => Ok(Dependency::greater_eq(key.as_str(), ver.trim())),
+                _ => Err(ConfigError::WrongDependencyVersion(key.clone())),
+            }?;
+            dependencies.push(dependency);
+        }
+        Ok(dependencies)
+    }
+
+    pub fn create_rpm_builder(
+        &self,
+        target_arch: Option<String>,
+        auto_req_mode: AutoReqMode,
+    ) -> Result<RPMBuilder, Error> {
         let metadata = self.metadata()?;
         macro_rules! get_str_from_metadata {
             ($name:expr) => {
@@ -167,6 +194,19 @@ impl Config {
                 } else {
                     None
                 } as Option<i64>
+            }
+        };
+        macro_rules! get_table_from_metadata {
+            ($name:expr) => {
+                if let Some(val) = metadata.get($name) {
+                    Some(val.as_table()
+                        .ok_or(ConfigError::WrongType(
+                            concat!("package.metadata.generate-rpm.", $name),
+                            "table"
+                        ))?)
+                } else {
+                    None
+                } as Option<&Table>
             }
         };
 
@@ -199,10 +239,11 @@ impl Config {
                 .ok_or(ConfigError::Missing("package.description"))?
                 .as_str(),
         );
+        let files = self.files()?;
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str("gzip").unwrap());
-        for file in &self.files()? {
+        for file in &files {
             let options = file.generate_rpm_file_options();
 
             let file_source = [
@@ -235,6 +276,39 @@ impl Config {
         }
         if let Some(post_uninstall_script) = get_str_from_metadata!("post_uninstall_script") {
             builder = builder.post_uninstall_script(post_uninstall_script);
+        }
+
+        if let Some(requires) = get_table_from_metadata!("requires") {
+            for dependency in Self::table_to_dependencies(requires)? {
+                builder = builder.requires(dependency);
+            }
+        }
+        let auto_req = if auto_req_mode == AutoReqMode::Auto
+            && matches!(
+                get_str_from_metadata!("auto-req"),
+                Some("no") | Some("disabled")
+            ) {
+            AutoReqMode::Disabled
+        } else {
+            auto_req_mode
+        };
+        for requires in find_requires(files.iter().map(|v| Path::new(v.source)), auto_req)? {
+            builder = builder.requires(Dependency::any(requires));
+        }
+        if let Some(obsoletes) = get_table_from_metadata!("obsoletes") {
+            for dependency in Self::table_to_dependencies(obsoletes)? {
+                builder = builder.obsoletes(dependency);
+            }
+        }
+        if let Some(conflicts) = get_table_from_metadata!("conflicts") {
+            for dependency in Self::table_to_dependencies(conflicts)? {
+                builder = builder.conflicts(dependency);
+            }
+        }
+        if let Some(provides) = get_table_from_metadata!("provides") {
+            for dependency in Self::table_to_dependencies(provides)? {
+                builder = builder.provides(dependency);
+            }
         }
 
         Ok(builder)
@@ -277,6 +351,7 @@ impl FileInfo<'_, '_, '_, '_> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use cargo_toml::Value;
 
     #[test]
     fn test_config_new() {
@@ -339,9 +414,76 @@ mod test {
     }
 
     #[test]
+    fn test_table_to_dependencies() {
+        fn dependency_to_u8_slice(dep: &Dependency) -> &[u8] {
+            unsafe { std::mem::transmute_copy(dep) }
+        }
+
+        let mut table = Table::new();
+        [
+            ("any1", ""),
+            ("any2", "*"),
+            ("less", "< 1.0"),
+            ("lesseq", "<= 1.0"),
+            ("eq", "= 1.0"),
+            ("greater", "> 1.0"),
+            ("greatereq", "<= 1.0"),
+        ]
+        .iter()
+        .for_each(|(k, v)| {
+            table.insert(k.to_string(), Value::String(v.to_string()));
+        });
+
+        assert_eq!(
+            Config::table_to_dependencies(&table)
+                .unwrap()
+                .iter()
+                .map(&dependency_to_u8_slice)
+                .collect::<Vec<_>>(),
+            vec![
+                dependency_to_u8_slice(&Dependency::any("any1")),
+                dependency_to_u8_slice(&Dependency::any("any2")),
+                dependency_to_u8_slice(&Dependency::eq("eq", "1.0")),
+                dependency_to_u8_slice(&Dependency::greater("greater", "1.0")),
+                dependency_to_u8_slice(&Dependency::greater_eq("greatereq", "1.0")),
+                dependency_to_u8_slice(&Dependency::less("less", "1.0")),
+                dependency_to_u8_slice(&Dependency::less_eq("lesseq", "1.0")),
+            ]
+        );
+
+        // table.clear();
+        table.insert("error".to_string(), Value::Integer(1));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+
+        table.clear();
+        table.insert("error".to_string(), Value::String("1".to_string()));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+
+        table.clear();
+        table.insert("error".to_string(), Value::String("!= 1".to_string()));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+
+        table.clear();
+        table.insert("error".to_string(), Value::String("> 1 1".to_string()));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+    }
+
+    #[test]
     fn test_config_create_rpm_builder() {
         let config = Config::new("Cargo.toml").unwrap();
-        let builder = config.create_rpm_builder(None);
+        let builder = config.create_rpm_builder(None, AutoReqMode::Disabled);
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
             matches!(builder, Ok(_))

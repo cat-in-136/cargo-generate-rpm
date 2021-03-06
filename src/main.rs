@@ -1,10 +1,13 @@
+use crate::auto_req::AutoReqMode;
 use crate::config::Config;
 use crate::error::Error;
 use getopts::Options;
+use std::convert::TryFrom;
 use std::env;
 use std::fs::{create_dir_all, File};
 use std::path::{Path, PathBuf};
 
+mod auto_req;
 mod config;
 mod error;
 
@@ -12,12 +15,15 @@ fn process(
     target_arch: Option<String>,
     target_file: Option<PathBuf>,
     package: Option<String>,
+    auto_req_mode: AutoReqMode,
 ) -> Result<(), Error> {
     let manifest_file_dir = package.map_or(env::current_dir()?, PathBuf::from);
     let manifest_file_path = manifest_file_dir.join("Cargo.toml");
     let config = Config::new(manifest_file_path)?;
 
-    let rpm_pkg = config.create_rpm_builder(target_arch)?.build()?;
+    let rpm_pkg = config
+        .create_rpm_builder(target_arch, auto_req_mode)?
+        .build()?;
 
     let default_file_name = Path::new("target").join("generate-rpm").join(format!(
         "{}-{}{}{}.rpm",
@@ -63,6 +69,13 @@ fn main() {
         "set a package name of the workspace",
         "NAME",
     );
+    opts.optopt(
+        "",
+        "auto-req",
+        "set automatic dependency processing mode, \
+         auto(Default), no, builtin, /path/to/find-requires",
+        "MODE",
+    );
     let opt_matches = opts.parse(env::args().skip(1)).unwrap_or_else(|err| {
         eprintln!("{}: {}", program, err);
         std::process::exit(1);
@@ -73,8 +86,17 @@ fn main() {
     let target_arch = opt_matches.opt_str("a");
     let target_file = opt_matches.opt_str("o").map(|v| PathBuf::from(v));
     let package = opt_matches.opt_str("p");
+    let auto_req_mode = AutoReqMode::try_from(
+        opt_matches
+            .opt_str("auto-req")
+            .unwrap_or("auto".to_string()),
+    )
+    .unwrap_or_else(|err| {
+        eprintln!("{}: {}", program, err);
+        std::process::exit(1);
+    });
 
-    process(target_arch, target_file, package).unwrap_or_else(|err| {
+    process(target_arch, target_file, package, auto_req_mode).unwrap_or_else(|err| {
         eprintln!("{}: {}", program, err);
         if cfg!(debug_assertions) {
             panic!("{:?}", err);
