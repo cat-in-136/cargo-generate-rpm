@@ -56,7 +56,7 @@ fn process(
     Ok(())
 }
 
-fn main() {
+fn parse_arg() -> Result<(Option<String>, Option<PathBuf>, Option<String>, AutoReqMode), Error> {
     let program = env::args().nth(0).unwrap();
 
     let mut opts = Options::new();
@@ -91,13 +91,19 @@ fn main() {
         opt_matches
             .opt_str("auto-req")
             .unwrap_or("auto".to_string()),
-    )
-    .unwrap_or_else(|err| {
-        eprintln!("{}: {}", program, err);
-        std::process::exit(1);
-    });
+    )?;
 
-    process(target_arch, target_file, package, auto_req_mode).unwrap_or_else(|err| {
+    Ok((target_arch, target_file, package, auto_req_mode))
+}
+
+fn main() {
+    (|| -> Result<(), Error> {
+        let (target_arch, target_file, package, auto_req_mode) = parse_arg()?;
+        process(target_arch, target_file, package, auto_req_mode)?;
+        Ok(())
+    })()
+    .unwrap_or_else(|err| {
+        let program = env::args().nth(0).unwrap();
         eprintln!("{}: {}", program, err);
         if cfg!(debug_assertions) {
             panic!("{:?}", err);
