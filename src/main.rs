@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 mod auto_req;
 mod config;
 mod error;
+mod file_info;
 
 fn process(
     target_arch: Option<String>,
