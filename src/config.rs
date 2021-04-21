@@ -1,4 +1,3 @@
-use std::env::consts::ARCH;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -8,6 +7,7 @@ use rpm::{Compressor, Dependency, RPMBuilder};
 use toml::value::Table;
 
 use crate::auto_req::{find_requires, AutoReqMode};
+use crate::build_target::BuildTarget;
 use crate::error::{ConfigError, Error};
 use crate::file_info::FileInfo;
 
@@ -80,7 +80,7 @@ impl Config {
 
     pub fn create_rpm_builder(
         &self,
-        target_arch: Option<String>,
+        build_target: &BuildTarget,
         auto_req_mode: AutoReqMode,
     ) -> Result<RPMBuilder, Error> {
         let metadata = self.metadata()?;
@@ -134,16 +134,7 @@ impl Config {
         let license = get_str_from_metadata!("license")
             .or_else(|| pkg.license.as_ref().map(|v| v.as_ref()))
             .ok_or(ConfigError::Missing("package.license"))?;
-        let arch = target_arch.unwrap_or_else(|| {
-            match ARCH {
-                "x86" => "i586",
-                "arm" => "armhfp",
-                "powerpc" => "ppc",
-                "powerpc64" => "ppc64",
-                _ => ARCH,
-            }
-            .to_string()
-        });
+        let arch = build_target.binary_arch();
         let desc = get_str_from_metadata!("summary")
             .or_else(|| pkg.description.as_ref().map(|v| v.as_ref()))
             .ok_or(ConfigError::Missing("package.description"))?;
@@ -153,7 +144,7 @@ impl Config {
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str("gzip").unwrap());
         for file in &files {
-            let file_source = file.generate_rpm_file_path(parent)?;
+            let file_source = file.generate_rpm_file_path(build_target, parent)?;
             let options = file.generate_rpm_file_options();
             builder = builder.with_file(file_source, options)?;
         }
@@ -313,7 +304,7 @@ mod test {
     #[test]
     fn test_config_create_rpm_builder() {
         let config = Config::new("Cargo.toml").unwrap();
-        let builder = config.create_rpm_builder(None, AutoReqMode::Disabled);
+        let builder = config.create_rpm_builder(&BuildTarget::default(), AutoReqMode::Disabled);
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
             matches!(builder, Ok(_))

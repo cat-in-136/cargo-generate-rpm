@@ -1,6 +1,7 @@
 use rpm::RPMFileOptions;
 use toml::value::Table;
 
+use crate::build_target::BuildTarget;
 use crate::error::ConfigError;
 use std::path::{Path, PathBuf};
 
@@ -108,12 +109,21 @@ impl FileInfo<'_, '_, '_, '_> {
         }
     }
 
-    pub(crate) fn generate_rpm_file_path(&self, parent: &Path) -> Result<PathBuf, ConfigError> {
-        let source = FileLocationReplacementRule::default().apply(self.source);
+    pub(crate) fn generate_rpm_file_path<P: AsRef<Path>>(
+        &self,
+        build_target: &BuildTarget,
+        parent: P,
+    ) -> Result<PathBuf, ConfigError> {
+        let source = if let Some(rel_path) = self.source.strip_prefix("target/release/") {
+            build_target.target_path("release").join(rel_path)
+        } else {
+            PathBuf::from(self.source)
+        };
+
         if source.exists() {
             Ok(source)
-        } else if parent.join(source.clone()).exists() {
-            Ok(parent.join(source))
+        } else if source.is_relative() && parent.as_ref().join(source.clone()).exists() {
+            Ok(parent.as_ref().join(source))
         } else {
             Err(ConfigError::AssetFileNotFound(self.source.to_string()))
         }
@@ -137,40 +147,6 @@ impl FileInfo<'_, '_, '_, '_> {
             rpm_file_option = rpm_file_option.is_doc();
         }
         rpm_file_option.into()
-    }
-}
-
-struct FileLocationReplacementRule {
-    target_dir: Option<String>,
-    target: Option<String>,
-}
-
-impl FileLocationReplacementRule {
-    fn apply<P: AsRef<Path>>(&self, path: P) -> PathBuf {
-        if let Ok(rel_path) = path.as_ref().strip_prefix("target/release") {
-            let target_dir =
-                PathBuf::from(self.target_dir.as_ref().unwrap_or(&"target".to_string()));
-            if let Some(target) = &self.target {
-                target_dir.join(target).join("release").join(rel_path)
-            } else {
-                target_dir.join("release".to_string()).join(rel_path)
-            }
-        } else {
-            path.as_ref().to_path_buf()
-        }
-    }
-}
-
-impl Default for FileLocationReplacementRule {
-    fn default() -> Self {
-        let target_build_dir = std::env::var("CARGO_BUILD_TARGET_DIR")
-            .or_else(|_| std::env::var("CARGO_TARGET_DIR"))
-            .ok();
-        let target = std::env::var("CARGO_BUILD_TARGET").ok();
-        Self {
-            target_dir: target_build_dir,
-            target,
-        }
     }
 }
 
@@ -215,45 +191,6 @@ mod test {
                     doc: true
                 }
             ]
-        );
-    }
-
-    #[test]
-    fn test_file_location_replacement_rule() {
-        let rule = FileLocationReplacementRule {
-            target_dir: None,
-            target: None,
-        };
-        assert_eq!(
-            rule.apply("target/release/foobar"),
-            PathBuf::from("target/release/foobar")
-        );
-
-        let rule = FileLocationReplacementRule {
-            target_dir: Some("TARGET_DIR".to_string()),
-            target: None,
-        };
-        assert_eq!(
-            rule.apply("target/release/foobar"),
-            PathBuf::from("TARGET_DIR/release/foobar")
-        );
-
-        let rule = FileLocationReplacementRule {
-            target_dir: None,
-            target: Some("TARGET".to_string()),
-        };
-        assert_eq!(
-            rule.apply("target/release/foobar"),
-            PathBuf::from("target/TARGET/release/foobar")
-        );
-
-        let rule = FileLocationReplacementRule {
-            target_dir: Some("TARGET_DIR".to_string()),
-            target: Some("TARGET".to_string()),
-        };
-        assert_eq!(
-            rule.apply("target/release/foobar"),
-            PathBuf::from("TARGET_DIR/TARGET/release/foobar")
         );
     }
 }
