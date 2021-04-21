@@ -96,7 +96,7 @@ impl Config {
                     None
                 } as Option<&str>
             }
-        };
+        }
         macro_rules! get_i64_from_metadata {
             ($name:expr) => {
                 if let Some(val) = metadata.get($name) {
@@ -109,7 +109,7 @@ impl Config {
                     None
                 } as Option<i64>
             }
-        };
+        }
         macro_rules! get_table_from_metadata {
             ($name:expr) => {
                 if let Some(val) = metadata.get($name) {
@@ -122,7 +122,7 @@ impl Config {
                     None
                 } as Option<&Table>
             }
-        };
+        }
 
         let pkg = self
             .manifest
