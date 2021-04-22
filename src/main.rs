@@ -80,6 +80,21 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, AutoReqM
          auto(Default), no, builtin, /path/to/find-requires",
         "MODE",
     );
+    opts.optopt(
+        "",
+        "target",
+        "Sub-directory name for all generated artifacts. \
+    May be specified with CARGO_BUILD_TARGET environment variable.",
+        "TARGET-TRIPLE",
+    );
+    opts.optopt(
+        "",
+        "target-dir",
+        "Directory for all generated artifacts. \
+    May be specified with CARGO_BUILD_TARGET_DIR or CARGO_TARGET_DIR environment variables.",
+        "DIRECTORY",
+    );
+
     let opt_matches = opts.parse(env::args().skip(1)).unwrap_or_else(|err| {
         eprintln!("{}: {}", program, err);
         std::process::exit(1);
@@ -98,6 +113,12 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, AutoReqM
             .opt_str("auto-req")
             .unwrap_or("auto".to_string()),
     )?;
+    if let Some(target) = opt_matches.opt_str("target") {
+        build_target.target = Some(target);
+    }
+    if let Some(target_dir) = opt_matches.opt_str("target-dir") {
+        build_target.target_dir = Some(target_dir);
+    }
 
     Ok((build_target, target_file, package, auto_req_mode))
 }
