@@ -129,8 +129,8 @@ cargo generate-rpm --target x86_64-unknown-linux-gnu
 When `--target-dir TARGET-DIR` and `--target x86_64-unknown-linux-gnu` are specified, a binary RPM file will be created
 at `TARGET-DIR/x86_64-unknown-linux-gnu/generate-rpm/XXX.rpm` instead of `target/generate-rpm/XXX.rpm`.
 In this case, the source of the asset `{ source = "target/release/XXX", dest = "/usr/bin/XXX" }` will be treated as
-`TARGET-DIR/x86_64-unknown-linux-gnu/release/XXX` instead of `target/releaseXXX`.
+`TARGET-DIR/x86_64-unknown-linux-gnu/release/XXX` instead of `target/release/XXX`.
 
-You can use `CARGO_BUILD_TARGET` environment variable instead of `--target-dir` option and `CARGO_BUILD_TARGET_DIR` or
-`CARGO_TARGET_DIR` instead of `--target`.
+You can use `CARGO_BUILD_TARGET` environment variable instead of `--target` option and `CARGO_BUILD_TARGET_DIR` or
+`CARGO_TARGET_DIR` instead of `--target-dir`.
 
