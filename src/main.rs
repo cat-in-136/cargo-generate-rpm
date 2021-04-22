@@ -66,7 +66,6 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, AutoReqM
     let mut opts = Options::new();
     opts.optopt("a", "arch", "set target arch", "ARCH");
     opts.optopt("o", "output", "set output file", "OUTPUT.rpm");
-    opts.optflag("h", "help", "print this help menu");
     opts.optopt(
         "p",
         "package",
@@ -95,6 +94,8 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, AutoReqM
         "DIRECTORY",
     );
 
+    opts.optflag("h", "help", "print this help menu");
+
     let opt_matches = opts.parse(env::args().skip(1)).unwrap_or_else(|err| {
         eprintln!("{}: {}", program, err);
         std::process::exit(1);
@@ -103,6 +104,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, AutoReqM
         println!("{}", opts.usage(&*format!("Usage: {} [options]", program)));
         std::process::exit(0);
     }
+
     if let Some(target_arch) = opt_matches.opt_str("a") {
         build_target.arch = Some(target_arch);
     }
