@@ -154,6 +154,7 @@ impl FileInfo<'_, '_, '_, '_> {
 mod test {
     use super::*;
     use crate::config::Config;
+    use std::fs::File;
 
     #[test]
     fn test_list_from_metadata() {
@@ -191,6 +192,102 @@ mod test {
                     doc: true
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn test_generate_rpm_file_path() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let target = BuildTarget::default();
+        let file_info = FileInfo {
+            source: "README.md",
+            dest: "/usr/share/doc/cargo-generate-rpm/README.md",
+            user: None,
+            group: None,
+            mode: None,
+            config: false,
+            doc: true,
+        };
+        assert_eq!(
+            file_info.generate_rpm_file_path(&target, &tempdir).unwrap(),
+            PathBuf::from("README.md")
+        );
+
+        let file_info = FileInfo {
+            source: "not-exist-file",
+            dest: "/usr/share/doc/cargo-generate-rpm/not-exist-file",
+            user: None,
+            group: None,
+            mode: None,
+            config: false,
+            doc: true,
+        };
+        assert!(matches!(
+        file_info.generate_rpm_file_path(&target, &tempdir),
+        Err(ConfigError::AssetFileNotFound(v)) if v == "not-exist-file"
+        ));
+
+        std::fs::create_dir_all(tempdir.path().join("target/release")).unwrap();
+        File::create(tempdir.path().join("target/release/foobar")).unwrap();
+        let file_info = FileInfo {
+            source: "target/release/foobar",
+            dest: "/usr/bin/foobar",
+            user: None,
+            group: None,
+            mode: None,
+            config: false,
+            doc: false,
+        };
+        assert_eq!(
+            file_info.generate_rpm_file_path(&target, &tempdir).unwrap(),
+            tempdir.path().join("target/release/foobar")
+        );
+
+        let target = BuildTarget {
+            target_dir: Some(
+                tempdir
+                    .path()
+                    .join("target")
+                    .as_os_str()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            ),
+            target: None,
+            ..Default::default()
+        };
+        assert_eq!(
+            file_info.generate_rpm_file_path(&target, ".").unwrap(),
+            tempdir.path().join("target/release/foobar")
+        );
+
+        std::fs::create_dir_all(tempdir.path().join("target/foobarbaz/release")).unwrap();
+        File::create(tempdir.path().join("target/foobarbaz/release/foobarbaz")).unwrap();
+        let file_info = FileInfo {
+            source: "target/release/foobarbaz",
+            dest: "/usr/bin/foobarbaz",
+            user: None,
+            group: None,
+            mode: None,
+            config: false,
+            doc: false,
+        };
+        let target = BuildTarget {
+            target_dir: Some(
+                tempdir
+                    .path()
+                    .join("target")
+                    .as_os_str()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            ),
+            target: Some("foobarbaz".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            file_info.generate_rpm_file_path(&target, ".").unwrap(),
+            tempdir.path().join("target/foobarbaz/release/foobarbaz")
         );
     }
 }
