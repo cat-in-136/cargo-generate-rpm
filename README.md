@@ -114,3 +114,23 @@ If both not found, `cargo generate-rpm` shall fail with an error.
 
 For example, `source = target/bin/XXX` would usually be treated as a relative path from the current directory. 
 Because all packages in the workspace share a common output directory that is located `target` in workspace directory.
+
+### Cross compilation
+
+This command supports `--target-dir` and `--target` option like `cargo build`.
+Depending on these options, this command changes the RPM package file location and replaces `target/release/` of
+the source locations of the assets.
+
+```sh
+cargo build --release --target x86_64-unknown-linux-gnu
+cargo generate-rpm --target x86_64-unknown-linux-gnu
+```
+
+When `--target-dir TARGET-DIR` and `--target x86_64-unknown-linux-gnu` are specified, a binary RPM file will be created
+at `TARGET-DIR/x86_64-unknown-linux-gnu/generate-rpm/XXX.rpm` instead of `target/generate-rpm/XXX.rpm`.
+In this case, the source of the asset `{ source = "target/release/XXX", dest = "/usr/bin/XXX" }` will be treated as
+`TARGET-DIR/x86_64-unknown-linux-gnu/release/XXX` instead of `target/release/XXX`.
+
+You can use `CARGO_BUILD_TARGET` environment variable instead of `--target` option and `CARGO_BUILD_TARGET_DIR` or
+`CARGO_TARGET_DIR` instead of `--target-dir`.
+

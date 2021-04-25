@@ -58,7 +58,7 @@ fn find_requires_by_ldd(
                 || so_name.starts_with("ld64.")
                 || so_name.starts_with("ld64-")
                 || so_name.starts_with("lib"))
-    };
+    }
 
     let process = Command::new("ldd")
         .arg("-v")

@@ -21,6 +21,9 @@ getopts = "0.2"
 thiserror = "1"
 elf = "0.0.10"
 
+[dev-dependencies]
+tempfile = "3"
+
 [package.metadata.generate-rpm]
 assets = [
     { source = "target/release/cargo-generate-rpm", dest = "/usr/bin/cargo-generate-rpm", mode = "0755" },

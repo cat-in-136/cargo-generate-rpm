@@ -1,12 +1,15 @@
-use crate::auto_req::{find_requires, AutoReqMode};
-use crate::error::{ConfigError, Error};
-use cargo_toml::Error as CargoTomlError;
-use cargo_toml::Manifest;
-use rpm::{Compressor, Dependency, RPMBuilder, RPMFileOptions};
-use std::env::consts::ARCH;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+
+use cargo_toml::Error as CargoTomlError;
+use cargo_toml::Manifest;
+use rpm::{Compressor, Dependency, RPMBuilder};
 use toml::value::Table;
+
+use crate::auto_req::{find_requires, AutoReqMode};
+use crate::build_target::BuildTarget;
+use crate::error::{ConfigError, Error};
+use crate::file_info::FileInfo;
 
 #[derive(Debug)]
 pub struct Config {
@@ -28,7 +31,7 @@ impl Config {
             })
     }
 
-    fn metadata(&self) -> Result<&Table, ConfigError> {
+    pub(crate) fn metadata(&self) -> Result<&Table, ConfigError> {
         let pkg = self
             .manifest
             .package
@@ -51,95 +54,6 @@ impl Config {
                 "table",
             ))?;
         Ok(metadata)
-    }
-
-    fn files(&self) -> Result<Vec<FileInfo>, ConfigError> {
-        let metadata = self.metadata()?;
-        let assets = metadata
-            .get("assets")
-            .ok_or(ConfigError::Missing("package.metadata.generate-rpm.assets"))?
-            .as_array()
-            .ok_or(ConfigError::WrongType(
-                "package.metadata.generate-rpm.assets",
-                "array",
-            ))?;
-
-        let mut files = Vec::with_capacity(assets.len());
-        for (idx, value) in assets.iter().enumerate() {
-            let table = value
-                .as_table()
-                .ok_or(ConfigError::AssetFileUndefined(idx, "source"))?;
-            let source = table
-                .get("source")
-                .ok_or(ConfigError::AssetFileUndefined(idx, "source"))?
-                .as_str()
-                .ok_or(ConfigError::AssetFileWrongType(idx, "source", "string"))?;
-            let dest = table
-                .get("dest")
-                .ok_or(ConfigError::AssetFileUndefined(idx, "dest"))?
-                .as_str()
-                .ok_or(ConfigError::AssetFileWrongType(idx, "dest", "string"))?;
-
-            let user = if let Some(user) = table.get("user") {
-                Some(
-                    user.as_str()
-                        .ok_or(ConfigError::AssetFileWrongType(idx, "user", "string"))?,
-                )
-            } else {
-                None
-            };
-            let group = if let Some(group) = table.get("group") {
-                Some(
-                    group
-                        .as_str()
-                        .ok_or(ConfigError::AssetFileWrongType(idx, "group", "string"))?,
-                )
-            } else {
-                None
-            };
-            let mode = if let Some(mode) = table.get("mode") {
-                let mode = mode
-                    .as_str()
-                    .ok_or(ConfigError::AssetFileWrongType(idx, "mode", "string"))?;
-                let mode = usize::from_str_radix(mode, 8)
-                    .map_err(|_| ConfigError::AssetFileWrongType(idx, "mode", "oct-string"))?;
-                let file_mode = if mode & 0o170000 != 0 {
-                    None
-                } else if source.ends_with('/') {
-                    Some(0o040000) // S_IFDIR
-                } else {
-                    Some(0o100000) // S_IFREG
-                };
-                Some(file_mode.unwrap_or_default() | mode)
-            } else {
-                None
-            };
-            let config = if let Some(is_config) = table.get("config") {
-                is_config
-                    .as_bool()
-                    .ok_or(ConfigError::AssetFileWrongType(idx, "config", "bool"))?
-            } else {
-                false
-            };
-            let doc = if let Some(is_doc) = table.get("doc") {
-                is_doc
-                    .as_bool()
-                    .ok_or(ConfigError::AssetFileWrongType(idx, "doc", "bool"))?
-            } else {
-                false
-            };
-
-            files.push(FileInfo {
-                source,
-                dest,
-                user,
-                group,
-                mode,
-                config,
-                doc,
-            });
-        }
-        Ok(files)
     }
 
     fn table_to_dependencies(table: &Table) -> Result<Vec<Dependency>, ConfigError> {
@@ -166,7 +80,7 @@ impl Config {
 
     pub fn create_rpm_builder(
         &self,
-        target_arch: Option<String>,
+        build_target: &BuildTarget,
         auto_req_mode: AutoReqMode,
     ) -> Result<RPMBuilder, Error> {
         let metadata = self.metadata()?;
@@ -182,7 +96,7 @@ impl Config {
                     None
                 } as Option<&str>
             }
-        };
+        }
         macro_rules! get_i64_from_metadata {
             ($name:expr) => {
                 if let Some(val) = metadata.get($name) {
@@ -195,7 +109,7 @@ impl Config {
                     None
                 } as Option<i64>
             }
-        };
+        }
         macro_rules! get_table_from_metadata {
             ($name:expr) => {
                 if let Some(val) = metadata.get($name) {
@@ -208,7 +122,7 @@ impl Config {
                     None
                 } as Option<&Table>
             }
-        };
+        }
 
         let pkg = self
             .manifest
@@ -220,35 +134,18 @@ impl Config {
         let license = get_str_from_metadata!("license")
             .or_else(|| pkg.license.as_ref().map(|v| v.as_ref()))
             .ok_or(ConfigError::Missing("package.license"))?;
-        let arch = target_arch.unwrap_or_else(|| {
-            match ARCH {
-                "x86" => "i586",
-                "arm" => "armhfp",
-                "powerpc" => "ppc",
-                "powerpc64" => "ppc64",
-                _ => ARCH,
-            }
-            .to_string()
-        });
+        let arch = build_target.binary_arch();
         let desc = get_str_from_metadata!("summary")
             .or_else(|| pkg.description.as_ref().map(|v| v.as_ref()))
             .ok_or(ConfigError::Missing("package.description"))?;
-        let files = self.files()?;
+        let files = FileInfo::list_from_metadata(&metadata)?;
+        let parent = self.path.parent().unwrap();
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str("gzip").unwrap());
         for file in &files {
+            let file_source = file.generate_rpm_file_path(build_target, parent)?;
             let options = file.generate_rpm_file_options();
-
-            let file_source = [
-                PathBuf::from(file.source),
-                self.path.parent().unwrap().join(file.source),
-            ]
-            .iter()
-            .find(|v| v.exists())
-            .ok_or_else(|| ConfigError::AssetFileNotFound(file.source.to_string()))?
-            .to_owned();
-
             builder = builder.with_file(file_source, options)?;
         }
 
@@ -309,43 +206,11 @@ impl Config {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct FileInfo<'a, 'b, 'c, 'd> {
-    source: &'a str,
-    dest: &'b str,
-    user: Option<&'c str>,
-    group: Option<&'d str>,
-    mode: Option<usize>,
-    config: bool,
-    doc: bool,
-}
-
-impl FileInfo<'_, '_, '_, '_> {
-    fn generate_rpm_file_options(&self) -> RPMFileOptions {
-        let mut rpm_file_option = RPMFileOptions::new(self.dest);
-        if let Some(user) = self.user {
-            rpm_file_option = rpm_file_option.user(user);
-        }
-        if let Some(group) = self.group {
-            rpm_file_option = rpm_file_option.group(group);
-        }
-        if let Some(mode) = self.mode {
-            rpm_file_option = rpm_file_option.mode(mode as i32);
-        }
-        if self.config {
-            rpm_file_option = rpm_file_option.is_config();
-        }
-        if self.doc {
-            rpm_file_option = rpm_file_option.is_doc();
-        }
-        rpm_file_option.into()
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use super::*;
     use cargo_toml::Value;
+
+    use super::*;
 
     #[test]
     fn test_config_new() {
@@ -367,44 +232,6 @@ mod test {
         let metadata = config.metadata().unwrap();
         let assets = metadata.get("assets").unwrap();
         assert!(assets.is_array());
-    }
-
-    #[test]
-    fn test_files() {
-        let config = Config::new("Cargo.toml").unwrap();
-        let files = config.files().unwrap();
-        assert_eq!(
-            files,
-            vec![
-                FileInfo {
-                    source: "target/release/cargo-generate-rpm",
-                    dest: "/usr/bin/cargo-generate-rpm",
-                    user: None,
-                    group: None,
-                    mode: Some(0o0100755),
-                    config: false,
-                    doc: false
-                },
-                FileInfo {
-                    source: "LICENSE",
-                    dest: "/usr/share/doc/cargo-generate-rpm/LICENSE",
-                    user: None,
-                    group: None,
-                    mode: Some(0o0100644),
-                    config: false,
-                    doc: true
-                },
-                FileInfo {
-                    source: "README.md",
-                    dest: "/usr/share/doc/cargo-generate-rpm/README.md",
-                    user: None,
-                    group: None,
-                    mode: Some(0o0100644),
-                    config: false,
-                    doc: true
-                }
-            ]
-        );
     }
 
     #[test]
@@ -477,7 +304,7 @@ mod test {
     #[test]
     fn test_config_create_rpm_builder() {
         let config = Config::new("Cargo.toml").unwrap();
-        let builder = config.create_rpm_builder(None, AutoReqMode::Disabled);
+        let builder = config.create_rpm_builder(&BuildTarget::default(), AutoReqMode::Disabled);
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
             matches!(builder, Ok(_))
