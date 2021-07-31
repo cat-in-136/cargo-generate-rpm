@@ -16,7 +16,7 @@ edition = "2018"
 [dependencies]
 rpm-rs = { git = "https://github.com/Richterrettich/rpm-rs.git", rev = "2dac707469cdc3a6c7032abd98d13bf494e00665" }
 toml = "0.5"
-cargo_toml = "0.8"
+cargo_toml = "0.9"
 getopts = "0.2"
 thiserror = "1"
 elf = "0.0.10"
