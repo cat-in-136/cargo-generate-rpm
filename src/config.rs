@@ -84,43 +84,55 @@ impl Config {
         auto_req_mode: AutoReqMode,
     ) -> Result<RPMBuilder, Error> {
         let metadata = self.metadata()?;
-        macro_rules! get_str_from_metadata {
-            ($name:expr) => {
+
+        macro_rules! get_from_metadata {
+            ($name:literal, {$($pattern:pat => $conv:expr),*}, $type_name:literal) => {
                 if let Some(val) = metadata.get($name) {
-                    Some(val.as_str()
-                        .ok_or(ConfigError::WrongType(
-                            concat!("package.metadata.generate-rpm.", $name),
-                            "string"
-                        ))?)
+                    use toml::value::Value::*;
+                    match val {
+                        $($pattern => $conv,)*
+                        _ => {
+                            Err(
+                                ConfigError::WrongType(
+                                    concat!("package.metadata.generate-rpm.", $name),
+                                    $type_name
+                                )
+                            )
+                        }
+                    }?
                 } else {
                     None
-                } as Option<&str>
+                }
+            }
+        }
+
+        macro_rules! get_str_from_metadata {
+            ($name:expr) => {
+                get_from_metadata!($name, {
+                    String(val) => Ok(Some(val.as_str()))
+                }, "string") as Option<&str>
             }
         }
         macro_rules! get_i64_from_metadata {
             ($name:expr) => {
-                if let Some(val) = metadata.get($name) {
-                    Some(val.as_integer()
-                        .ok_or(ConfigError::WrongType(
-                            concat!("package.metadata.generate-rpm.", $name),
-                            "integer"
-                        ))?)
-                } else {
-                    None
-                } as Option<i64>
+                get_from_metadata!($name, {
+                    Integer(val) => Ok(Some(*val))
+                }, "integer") as Option<i64>
+            }
+        }
+        macro_rules! get_str_or_i64_from_metadata {
+            ($name:expr) => {
+                get_from_metadata!($name, {
+                    Integer(val) => Ok(Some(val.to_string())),
+                    String(val) => Ok(Some(val.clone()))
+                }, "string or integer") as Option<String>
             }
         }
         macro_rules! get_table_from_metadata {
             ($name:expr) => {
-                if let Some(val) = metadata.get($name) {
-                    Some(val.as_table()
-                        .ok_or(ConfigError::WrongType(
-                            concat!("package.metadata.generate-rpm.", $name),
-                            "table"
-                        ))?)
-                } else {
-                    None
-                } as Option<&Table>
+                get_from_metadata!($name, {
+                    Table(val) => Ok(Some(val))
+                }, "table") as Option<&Table>
             }
         }
 
@@ -149,8 +161,8 @@ impl Config {
             builder = builder.with_file(file_source, options)?;
         }
 
-        if let Some(release) = get_i64_from_metadata!("release") {
-            builder = builder.release(release as u16);
+        if let Some(release) = get_str_or_i64_from_metadata!("release") {
+            builder = builder.release(release);
         }
         if let Some(epoch) = get_i64_from_metadata!("epoch") {
             builder = builder.epoch(epoch as i32);
