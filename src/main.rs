@@ -1,6 +1,6 @@
 use crate::auto_req::AutoReqMode;
 use crate::build_target::BuildTarget;
-use crate::config::Config;
+use crate::config::{Config, RpmBuilderConfig};
 use crate::error::Error;
 use getopts::Options;
 use std::convert::TryFrom;
@@ -14,18 +14,28 @@ mod config;
 mod error;
 mod file_info;
 
+#[derive(Debug)]
+struct CliSetting {
+    auto_req_mode: AutoReqMode,
+    payload_compress: String,
+}
+
 fn process(
     build_target: &BuildTarget,
     target_file: Option<PathBuf>,
     package: Option<String>,
-    auto_req_mode: AutoReqMode,
+    setting: CliSetting,
 ) -> Result<(), Error> {
     let manifest_file_dir = package.map_or(env::current_dir()?, PathBuf::from);
     let manifest_file_path = manifest_file_dir.join("Cargo.toml");
     let config = Config::new(manifest_file_path)?;
 
     let rpm_pkg = config
-        .create_rpm_builder(build_target, auto_req_mode)?
+        .create_rpm_builder(RpmBuilderConfig::new(
+            build_target,
+            setting.auto_req_mode,
+            setting.payload_compress.as_str(),
+        ))?
         .build()?;
 
     let default_file_name = build_target.target_path("generate-rpm").join(format!(
@@ -59,7 +69,7 @@ fn process(
     Ok(())
 }
 
-fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, AutoReqMode), Error> {
+fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetting), Error> {
     let program = env::args().nth(0).unwrap();
     let mut build_target = BuildTarget::default();
 
@@ -93,6 +103,13 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, AutoReqM
     May be specified with CARGO_BUILD_TARGET_DIR or CARGO_TARGET_DIR environment variables.",
         "DIRECTORY",
     );
+    opts.optopt(
+        "",
+        "payload-compress",
+        "Compression type of package payloads.\
+        none, gzip or zstd(Default).",
+        "TYPE",
+    );
 
     opts.optflag("h", "help", "print this help menu");
 
@@ -121,14 +138,25 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, AutoReqM
     if let Some(target_dir) = opt_matches.opt_str("target-dir") {
         build_target.target_dir = Some(target_dir);
     }
+    let payload_compress = opt_matches
+        .opt_str("payload-compress")
+        .unwrap_or("zstd".to_string());
 
-    Ok((build_target, target_file, package, auto_req_mode))
+    Ok((
+        build_target,
+        target_file,
+        package,
+        CliSetting {
+            auto_req_mode,
+            payload_compress,
+        },
+    ))
 }
 
 fn main() {
     (|| -> Result<(), Error> {
-        let (build_target, target_file, package, auto_req_mode) = parse_arg()?;
-        process(&build_target, target_file, package, auto_req_mode)?;
+        let (build_target, target_file, package, setting) = parse_arg()?;
+        process(&build_target, target_file, package, setting)?;
         Ok(())
     })()
     .unwrap_or_else(|err| {

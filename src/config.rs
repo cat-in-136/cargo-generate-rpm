@@ -12,6 +12,27 @@ use crate::error::{ConfigError, Error};
 use crate::file_info::FileInfo;
 
 #[derive(Debug)]
+pub struct RpmBuilderConfig<'a, 'b> {
+    build_target: &'a BuildTarget,
+    auto_req_mode: AutoReqMode,
+    payload_compress: &'b str,
+}
+
+impl<'a, 'b> RpmBuilderConfig<'a, 'b> {
+    pub fn new(
+        build_target: &'a BuildTarget,
+        auto_req_mode: AutoReqMode,
+        payload_compress: &'b str,
+    ) -> RpmBuilderConfig<'a, 'b> {
+        RpmBuilderConfig {
+            build_target,
+            auto_req_mode,
+            payload_compress,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Config {
     manifest: Manifest,
     path: PathBuf,
@@ -80,8 +101,7 @@ impl Config {
 
     pub fn create_rpm_builder(
         &self,
-        build_target: &BuildTarget,
-        auto_req_mode: AutoReqMode,
+        rpm_builder_config: RpmBuilderConfig,
     ) -> Result<RPMBuilder, Error> {
         let metadata = self.metadata()?;
 
@@ -146,7 +166,7 @@ impl Config {
         let license = get_str_from_metadata!("license")
             .or_else(|| pkg.license.as_ref().map(|v| v.as_ref()))
             .ok_or(ConfigError::Missing("package.license"))?;
-        let arch = build_target.binary_arch();
+        let arch = rpm_builder_config.build_target.binary_arch();
         let desc = get_str_from_metadata!("summary")
             .or_else(|| pkg.description.as_ref().map(|v| v.as_ref()))
             .ok_or(ConfigError::Missing("package.description"))?;
@@ -154,9 +174,10 @@ impl Config {
         let parent = self.path.parent().unwrap();
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
-            .compression(Compressor::from_str("gzip").unwrap());
+            .compression(Compressor::from_str(rpm_builder_config.payload_compress)?);
         for file in &files {
-            let file_source = file.generate_rpm_file_path(build_target, parent)?;
+            let file_source =
+                file.generate_rpm_file_path(rpm_builder_config.build_target, parent)?;
             let options = file.generate_rpm_file_options();
             builder = builder.with_file(file_source, options)?;
         }
@@ -186,14 +207,14 @@ impl Config {
                 builder = builder.requires(dependency);
             }
         }
-        let auto_req = if auto_req_mode == AutoReqMode::Auto
+        let auto_req = if rpm_builder_config.auto_req_mode == AutoReqMode::Auto
             && matches!(
                 get_str_from_metadata!("auto-req"),
                 Some("no") | Some("disabled")
             ) {
             AutoReqMode::Disabled
         } else {
-            auto_req_mode
+            rpm_builder_config.auto_req_mode
         };
         for requires in find_requires(files.iter().map(|v| Path::new(v.source)), auto_req)? {
             builder = builder.requires(Dependency::any(requires));
