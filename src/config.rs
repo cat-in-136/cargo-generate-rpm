@@ -337,7 +337,11 @@ mod test {
     #[test]
     fn test_config_create_rpm_builder() {
         let config = Config::new("Cargo.toml").unwrap();
-        let builder = config.create_rpm_builder(&BuildTarget::default(), AutoReqMode::Disabled);
+        let builder = config.create_rpm_builder(RpmBuilderConfig::new(
+            &BuildTarget::default(),
+            AutoReqMode::Disabled,
+            "zstd",
+        ));
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
             matches!(builder, Ok(_))
