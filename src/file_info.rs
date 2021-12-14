@@ -1,3 +1,4 @@
+use glob::glob;
 use rpm::RPMFileOptions;
 use toml::value::Table;
 
@@ -6,9 +7,9 @@ use crate::error::ConfigError;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct FileInfo<'a, 'b, 'c, 'd> {
-    pub source: &'a str,
-    pub dest: &'b str,
+pub struct FileInfo<'c, 'd> {
+    pub source: String,
+    pub dest: String,
     pub user: Option<&'c str>,
     pub group: Option<&'d str>,
     pub mode: Option<usize>,
@@ -16,7 +17,7 @@ pub struct FileInfo<'a, 'b, 'c, 'd> {
     pub doc: bool,
 }
 
-impl FileInfo<'_, '_, '_, '_> {
+impl FileInfo<'_, '_> {
     pub fn list_from_metadata(metadata: &Table) -> Result<Vec<FileInfo>, ConfigError> {
         let assets = metadata
             .get("assets")
@@ -36,12 +37,14 @@ impl FileInfo<'_, '_, '_, '_> {
                 .get("source")
                 .ok_or(ConfigError::AssetFileUndefined(idx, "source"))?
                 .as_str()
-                .ok_or(ConfigError::AssetFileWrongType(idx, "source", "string"))?;
+                .ok_or(ConfigError::AssetFileWrongType(idx, "source", "string"))?
+                .to_owned();
             let dest = table
                 .get("dest")
                 .ok_or(ConfigError::AssetFileUndefined(idx, "dest"))?
                 .as_str()
-                .ok_or(ConfigError::AssetFileWrongType(idx, "dest", "string"))?;
+                .ok_or(ConfigError::AssetFileWrongType(idx, "dest", "string"))?
+                .to_owned();
 
             let user = if let Some(user) = table.get("user") {
                 Some(
@@ -60,7 +63,7 @@ impl FileInfo<'_, '_, '_, '_> {
             } else {
                 None
             };
-            let mode = Self::get_mode(&table, source, idx)?;
+            let mode = Self::get_mode(&table, &source, idx)?;
             let config = if let Some(is_config) = table.get("config") {
                 is_config
                     .as_bool()
@@ -76,15 +79,44 @@ impl FileInfo<'_, '_, '_, '_> {
                 false
             };
 
-            files.push(FileInfo {
-                source,
-                dest,
-                user,
-                group,
-                mode,
-                config,
-                doc,
-            });
+            if source.contains("*") {
+                let base = _get_base_from_glob(idx, &source)?;
+                for path in glob(&source).map_err(|e| ConfigError::AssetGlobInvalid(idx, e.msg))? {
+                    let file = path.map_err(|_| ConfigError::AssetReadFailed(idx))?;
+                    if file.is_dir() {
+                        continue;
+                    }
+                    let rel_path = file.strip_prefix(&base).map_err(|_| {
+                        ConfigError::AssetGlobPathInvalid(
+                            idx,
+                            file.to_str().unwrap().to_owned(),
+                            base.to_str().unwrap().to_owned(),
+                        )
+                    })?;
+                    let dest_path = Path::new(&dest).join(rel_path);
+                    let src = file.to_str().unwrap().to_owned();
+                    let dst = dest_path.to_str().unwrap().to_owned();
+                    files.push(FileInfo {
+                        source: src,
+                        dest: dst,
+                        user,
+                        group,
+                        mode,
+                        config,
+                        doc,
+                    })
+                }
+            } else {
+                files.push(FileInfo {
+                    source,
+                    dest,
+                    user,
+                    group,
+                    mode,
+                    config,
+                    doc,
+                });
+            }
         }
         Ok(files)
     }
@@ -117,7 +149,7 @@ impl FileInfo<'_, '_, '_, '_> {
         let source = if let Some(rel_path) = self.source.strip_prefix("target/release/") {
             build_target.target_path("release").join(rel_path)
         } else {
-            PathBuf::from(self.source)
+            PathBuf::from(&self.source)
         };
 
         if source.exists() {
@@ -130,7 +162,7 @@ impl FileInfo<'_, '_, '_, '_> {
     }
 
     pub(crate) fn generate_rpm_file_options(&self) -> RPMFileOptions {
-        let mut rpm_file_option = RPMFileOptions::new(self.dest);
+        let mut rpm_file_option = RPMFileOptions::new(&self.dest);
         if let Some(user) = self.user {
             rpm_file_option = rpm_file_option.user(user);
         }
@@ -150,6 +182,28 @@ impl FileInfo<'_, '_, '_, '_> {
     }
 }
 
+fn _get_base_from_glob<'a>(idx: usize, glob: &'a str) -> Result<PathBuf, ConfigError> {
+    let base = if let Some(b) = glob.split('*').next() {
+        b
+    } else {
+        return Err(ConfigError::AssetGlobInvalid(
+            idx,
+            "Glob may not start string",
+        ));
+    };
+
+    let base_path = Path::new(base);
+    let out_path = if base_path.is_dir() {
+        base_path
+    } else if let Some(parent) = base_path.parent() {
+        parent
+    } else {
+        base_path
+    };
+
+    Ok(out_path.into())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -165,8 +219,8 @@ mod test {
             files,
             vec![
                 FileInfo {
-                    source: "target/release/cargo-generate-rpm",
-                    dest: "/usr/bin/cargo-generate-rpm",
+                    source: "target/release/cargo-generate-rpm".into(),
+                    dest: "/usr/bin/cargo-generate-rpm".into(),
                     user: None,
                     group: None,
                     mode: Some(0o0100755),
@@ -174,8 +228,8 @@ mod test {
                     doc: false
                 },
                 FileInfo {
-                    source: "LICENSE",
-                    dest: "/usr/share/doc/cargo-generate-rpm/LICENSE",
+                    source: "LICENSE".into(),
+                    dest: "/usr/share/doc/cargo-generate-rpm/LICENSE".into(),
                     user: None,
                     group: None,
                     mode: Some(0o0100644),
@@ -183,8 +237,8 @@ mod test {
                     doc: true
                 },
                 FileInfo {
-                    source: "README.md",
-                    dest: "/usr/share/doc/cargo-generate-rpm/README.md",
+                    source: "README.md".into(),
+                    dest: "/usr/share/doc/cargo-generate-rpm/README.md".into(),
                     user: None,
                     group: None,
                     mode: Some(0o0100644),
@@ -200,8 +254,8 @@ mod test {
         let tempdir = tempfile::tempdir().unwrap();
         let target = BuildTarget::default();
         let file_info = FileInfo {
-            source: "README.md",
-            dest: "/usr/share/doc/cargo-generate-rpm/README.md",
+            source: "README.md".into(),
+            dest: "/usr/share/doc/cargo-generate-rpm/README.md".into(),
             user: None,
             group: None,
             mode: None,
@@ -214,8 +268,8 @@ mod test {
         );
 
         let file_info = FileInfo {
-            source: "not-exist-file",
-            dest: "/usr/share/doc/cargo-generate-rpm/not-exist-file",
+            source: "not-exist-file".into(),
+            dest: "/usr/share/doc/cargo-generate-rpm/not-exist-file".into(),
             user: None,
             group: None,
             mode: None,
@@ -230,8 +284,8 @@ mod test {
         std::fs::create_dir_all(tempdir.path().join("target/release")).unwrap();
         File::create(tempdir.path().join("target/release/foobar")).unwrap();
         let file_info = FileInfo {
-            source: "target/release/foobar",
-            dest: "/usr/bin/foobar",
+            source: "target/release/foobar".into(),
+            dest: "/usr/bin/foobar".into(),
             user: None,
             group: None,
             mode: None,
@@ -264,8 +318,8 @@ mod test {
         std::fs::create_dir_all(tempdir.path().join("target/foobarbaz/release")).unwrap();
         File::create(tempdir.path().join("target/foobarbaz/release/foobarbaz")).unwrap();
         let file_info = FileInfo {
-            source: "target/release/foobarbaz",
-            dest: "/usr/bin/foobarbaz",
+            source: "target/release/foobarbaz".into(),
+            dest: "/usr/bin/foobarbaz".into(),
             user: None,
             group: None,
             mode: None,

@@ -10,6 +10,12 @@ pub enum ConfigError {
     Missing(&'static str),
     #[error("Field {0} must be {1}")]
     WrongType(&'static str, &'static str),
+    #[error("Invalid Glob at {0}: {1}")]
+    AssetGlobInvalid(usize, &'static str),
+    #[error("Glob at {0}-th asset found {1} which doesn't appear to be in {2}")]
+    AssetGlobPathInvalid(usize, String, String),
+    #[error("Failed reading {0}-th asset")]
+    AssetReadFailed(usize),
     #[error("{1} of {0}-th asset is undefined")]
     AssetFileUndefined(usize, &'static str),
     #[error("{1} of {0}-th asset must be {2}")]
