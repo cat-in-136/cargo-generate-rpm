@@ -79,8 +79,8 @@ impl FileInfo<'_, '_> {
                 false
             };
 
-            if source.contains("*") {
-                let base = _get_base_from_glob(idx, &source)?;
+            if source.contains('*') {
+                let base = _get_base_from_glob(&source);
                 for path in glob(&source).map_err(|e| ConfigError::AssetGlobInvalid(idx, e.msg))? {
                     let file = path.map_err(|_| ConfigError::AssetReadFailed(idx))?;
                     if file.is_dir() {
@@ -182,14 +182,10 @@ impl FileInfo<'_, '_> {
     }
 }
 
-fn _get_base_from_glob(idx: usize, glob: &'_ str) -> Result<PathBuf, ConfigError> {
-    let base = if let Some(b) = glob.split('*').next() {
-        b
-    } else {
-        return Err(ConfigError::AssetGlobInvalid(
-            idx,
-            "Glob may not start string",
-        ));
+fn _get_base_from_glob(glob: &'_ str) -> PathBuf {
+    let base = match glob.split_once('*') {
+        Some((before, _)) => before,
+        None => glob,
     };
 
     let base_path = Path::new(base);
@@ -201,7 +197,7 @@ fn _get_base_from_glob(idx: usize, glob: &'_ str) -> Result<PathBuf, ConfigError
         base_path
     };
 
-    Ok(out_path.into())
+    out_path.into()
 }
 
 #[cfg(test)]
@@ -209,6 +205,22 @@ mod test {
     use super::*;
     use crate::config::Config;
     use std::fs::File;
+
+    #[test]
+    fn test_get_base_from_glob() {
+        let tests = &[
+            ("*", PathBuf::from("")),
+            ("src/auto_req/*.rs", PathBuf::from("src/auto_req")),
+            ("src/not_a_directory/*.rs", PathBuf::from("src")),
+            ("*.things", PathBuf::from("")),
+            ("src/auto_req", PathBuf::from("src/auto_req")), // shouldn't currently happen as we detect '*' in the string, but test the code path anyway
+        ];
+
+        for test in tests {
+            let out = _get_base_from_glob(test.0);
+            assert_eq!(out, test.1);
+        }
+    }
 
     #[test]
     fn test_list_from_metadata() {
