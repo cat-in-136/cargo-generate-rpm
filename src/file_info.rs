@@ -182,7 +182,7 @@ impl FileInfo<'_, '_> {
     }
 }
 
-fn _get_base_from_glob<'a>(idx: usize, glob: &'a str) -> Result<PathBuf, ConfigError> {
+fn _get_base_from_glob(idx: usize, glob: &'_ str) -> Result<PathBuf, ConfigError> {
     let base = if let Some(b) = glob.split('*').next() {
         b
     } else {
