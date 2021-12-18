@@ -216,7 +216,7 @@ impl Config {
         } else {
             rpm_builder_config.auto_req_mode
         };
-        for requires in find_requires(files.iter().map(|v| Path::new(v.source)), auto_req)? {
+        for requires in find_requires(files.iter().map(|v| Path::new(&v.source)), auto_req)? {
             builder = builder.requires(Dependency::any(requires));
         }
         if let Some(obsoletes) = get_table_from_metadata!("obsoletes") {
