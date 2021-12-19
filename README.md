@@ -37,8 +37,8 @@ This command obtains RPM metadata from [the `Cargo.toml` file](https://doc.rust-
 * license: the package license. If not present, `package.license` is used.
 * summary: the package summary/description. If not present, `package.description` is used.
 * assets: (**mandatory**) the array of the files to be included in the package
-  * source: the location of that asset in the Rust project. (e.g. `target/release/XXX`)
-  * dest: the install-destination. (e.g. `/usr/bin/XXX`)
+  * source: the location of that asset in the Rust project. (e.g. `target/release/XXX`) Wildcard character `*` is allowed.
+  * dest: the install-destination. (e.g. `/usr/bin/XXX`) If source contains wildcard character `*`, it must be a directory, not a file path.
   * mode: the permissions as octal string. (e.g. `755` to indicate `-rwxr-xr-x`)
   * config: set true if it is a configuration file.
   * doc: set true if it is a document file.
