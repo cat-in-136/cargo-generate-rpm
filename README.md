@@ -134,3 +134,10 @@ In this case, the source of the asset `{ source = "target/release/XXX", dest = "
 You can use `CARGO_BUILD_TARGET` environment variable instead of `--target` option and `CARGO_BUILD_TARGET_DIR` or
 `CARGO_TARGET_DIR` instead of `--target-dir`.
 
+### Payload compress type
+
+The default payload compress type of the generated RPM file is zstd.
+You can specify the payload compress type with `--payload-compress TYPE`: none, gzip, or zstd.
+
+For the legacy system (e.g. centos7), specify legacy compress type explicitly e.g. `--payload-compress none`.
+
