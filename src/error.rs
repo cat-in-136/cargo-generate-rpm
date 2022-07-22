@@ -7,9 +7,9 @@ use std::path::PathBuf;
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum ConfigError {
     #[error("Missing field: {0}")]
-    Missing(&'static str),
+    Missing(String),
     #[error("Field {0} must be {1}")]
-    WrongType(&'static str, &'static str),
+    WrongType(String, &'static str),
     #[error("Invalid Glob at {0}: {1}")]
     AssetGlobInvalid(usize, &'static str),
     #[error("Glob at {0}-th asset found {1} which doesn't appear to be in {2}")]

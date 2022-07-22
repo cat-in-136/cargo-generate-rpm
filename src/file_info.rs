@@ -21,10 +21,12 @@ impl FileInfo<'_, '_> {
     pub fn list_from_metadata(metadata: &Table) -> Result<Vec<FileInfo>, ConfigError> {
         let assets = metadata
             .get("assets")
-            .ok_or(ConfigError::Missing("package.metadata.generate-rpm.assets"))?
+            .ok_or(ConfigError::Missing(
+                "package.metadata.generate-rpm.assets".to_string(),
+            ))?
             .as_array()
             .ok_or(ConfigError::WrongType(
-                "package.metadata.generate-rpm.assets",
+                "package.metadata.generate-rpm.assets".to_string(),
                 "array",
             ))?;
 

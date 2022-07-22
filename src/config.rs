@@ -5,6 +5,7 @@ use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
 use rpm::{Compressor, Dependency, RPMBuilder};
 use toml::value::Table;
+use toml::Value;
 
 use crate::auto_req::{find_requires, AutoReqMode};
 use crate::build_target::BuildTarget;
@@ -57,21 +58,26 @@ impl Config {
             .manifest
             .package
             .as_ref()
-            .ok_or(ConfigError::Missing("package"))?;
+            .ok_or(ConfigError::Missing("package".to_string()))?;
         let metadata = pkg
             .metadata
             .as_ref()
-            .ok_or(ConfigError::Missing("package.metadata"))?
+            .ok_or(ConfigError::Missing("package.metadata".to_string()))?
             .as_table()
-            .ok_or(ConfigError::WrongType("package.metadata", "table"))?;
+            .ok_or(ConfigError::WrongType(
+                "package.metadata".to_string(),
+                "table",
+            ))?;
         let metadata = metadata
             .iter()
             .find(|(name, _)| name.as_str() == "generate-rpm")
-            .ok_or(ConfigError::Missing("package.metadata.generate-rpm"))?
+            .ok_or(ConfigError::Missing(
+                "package.metadata.generate-rpm".to_string(),
+            ))?
             .1
             .as_table()
             .ok_or(ConfigError::WrongType(
-                "package.metadata.generate-rpm",
+                "package.metadata.generate-rpm".to_string(),
                 "table",
             ))?;
         Ok(metadata)
@@ -105,71 +111,74 @@ impl Config {
     ) -> Result<RPMBuilder, Error> {
         let metadata = self.metadata()?;
 
-        macro_rules! get_from_metadata {
-            ($name:literal, {$($pattern:pat => $conv:expr),*}, $type_name:literal) => {
-                if let Some(val) = metadata.get($name) {
-                    use toml::value::Value::*;
-                    match val {
-                        $($pattern => $conv,)*
-                        _ => {
-                            Err(
-                                ConfigError::WrongType(
-                                    concat!("package.metadata.generate-rpm.", $name),
-                                    $type_name
-                                )
-                            )
-                        }
-                    }?
-                } else {
-                    None
+        let get_str_from_metadata = |name| -> Result<Option<&str>, ConfigError> {
+            if let Some(val) = metadata.get(name) {
+                match val {
+                    Value::String(v) => Ok(Some(v)),
+                    _ => Err(ConfigError::WrongType(
+                        ["package.metadata.generate-rpm.", name].join(""),
+                        "string",
+                    )),
                 }
+            } else {
+                Ok(None)
             }
-        }
-
-        macro_rules! get_str_from_metadata {
-            ($name:expr) => {
-                get_from_metadata!($name, {
-                    String(val) => Ok(Some(val.as_str()))
-                }, "string") as Option<&str>
+        };
+        let get_i64_from_metadata = |name| -> Result<Option<i64>, ConfigError> {
+            if let Some(val) = metadata.get(name) {
+                match val {
+                    Value::Integer(val) => Ok(Some(*val)),
+                    _ => Err(ConfigError::WrongType(
+                        ["package.metadata.generate-rpm.", name].join(""),
+                        "integer",
+                    )),
+                }
+            } else {
+                Ok(None)
             }
-        }
-        macro_rules! get_i64_from_metadata {
-            ($name:expr) => {
-                get_from_metadata!($name, {
-                    Integer(val) => Ok(Some(*val))
-                }, "integer") as Option<i64>
+        };
+        let get_str_or_i64_from_metadata = |name| -> Result<Option<String>, ConfigError> {
+            if let Some(val) = metadata.get(name) {
+                match val {
+                    Value::Integer(val) => Ok(Some(val.to_string())),
+                    Value::String(val) => Ok(Some(val.clone())),
+                    _ => Err(ConfigError::WrongType(
+                        ["package.metadata.generate-rpm.", name].join(""),
+                        "string or integer",
+                    )),
+                }
+            } else {
+                Ok(None)
             }
-        }
-        macro_rules! get_str_or_i64_from_metadata {
-            ($name:expr) => {
-                get_from_metadata!($name, {
-                    Integer(val) => Ok(Some(val.to_string())),
-                    String(val) => Ok(Some(val.clone()))
-                }, "string or integer") as Option<String>
+        };
+        let get_table_from_metadata = |name| -> Result<Option<&Table>, ConfigError> {
+            if let Some(val) = metadata.get(name) {
+                match val {
+                    Value::Table(val) => Ok(Some(val)),
+                    _ => Err(ConfigError::WrongType(
+                        ["package.metadata.generate-rpm.", name].join(""),
+                        "table",
+                    )),
+                }
+            } else {
+                Ok(None)
             }
-        }
-        macro_rules! get_table_from_metadata {
-            ($name:expr) => {
-                get_from_metadata!($name, {
-                    Table(val) => Ok(Some(val))
-                }, "table") as Option<&Table>
-            }
-        }
+        };
 
         let pkg = self
             .manifest
             .package
             .as_ref()
-            .ok_or(ConfigError::Missing("package"))?;
-        let name = get_str_from_metadata!("name").unwrap_or_else(|| pkg.name.as_str());
-        let version = get_str_from_metadata!("version").unwrap_or_else(|| pkg.version.as_str());
-        let license = get_str_from_metadata!("license")
+            .ok_or(ConfigError::Missing("package".to_string()))?;
+        let name = get_str_from_metadata("name")?.unwrap_or_else(|| pkg.name.as_str());
+        let version = get_str_from_metadata("version")?.unwrap_or_else(|| pkg.version.as_str());
+        let license = get_str_from_metadata("license")?
             .or_else(|| pkg.license.as_ref().map(|v| v.as_ref()))
-            .ok_or(ConfigError::Missing("package.license"))?;
+            .ok_or(ConfigError::Missing("package.license".to_string()))?;
         let arch = rpm_builder_config.build_target.binary_arch();
-        let desc = get_str_from_metadata!("summary")
+        let desc = get_str_from_metadata("summary")?
             .or_else(|| pkg.description.as_ref().map(|v| v.as_ref()))
-            .ok_or(ConfigError::Missing("package.description"))?;
+            .ok_or(ConfigError::Missing("package.description".to_string()))?;
         let files = FileInfo::list_from_metadata(&metadata)?;
         let parent = self.path.parent().unwrap();
 
@@ -182,34 +191,34 @@ impl Config {
             builder = builder.with_file(file_source, options)?;
         }
 
-        if let Some(release) = get_str_or_i64_from_metadata!("release") {
+        if let Some(release) = get_str_or_i64_from_metadata("release")? {
             builder = builder.release(release);
         }
-        if let Some(epoch) = get_i64_from_metadata!("epoch") {
+        if let Some(epoch) = get_i64_from_metadata("epoch")? {
             builder = builder.epoch(epoch as i32);
         }
 
-        if let Some(pre_install_script) = get_str_from_metadata!("pre_install_script") {
+        if let Some(pre_install_script) = get_str_from_metadata("pre_install_script")? {
             builder = builder.pre_install_script(pre_install_script);
         }
-        if let Some(pre_uninstall_script) = get_str_from_metadata!("pre_uninstall_script") {
+        if let Some(pre_uninstall_script) = get_str_from_metadata("pre_uninstall_script")? {
             builder = builder.pre_uninstall_script(pre_uninstall_script);
         }
-        if let Some(post_install_script) = get_str_from_metadata!("post_install_script") {
+        if let Some(post_install_script) = get_str_from_metadata("post_install_script")? {
             builder = builder.post_install_script(post_install_script);
         }
-        if let Some(post_uninstall_script) = get_str_from_metadata!("post_uninstall_script") {
+        if let Some(post_uninstall_script) = get_str_from_metadata("post_uninstall_script")? {
             builder = builder.post_uninstall_script(post_uninstall_script);
         }
 
-        if let Some(requires) = get_table_from_metadata!("requires") {
+        if let Some(requires) = get_table_from_metadata("requires")? {
             for dependency in Self::table_to_dependencies(requires)? {
                 builder = builder.requires(dependency);
             }
         }
         let auto_req = if rpm_builder_config.auto_req_mode == AutoReqMode::Auto
             && matches!(
-                get_str_from_metadata!("auto-req"),
+                get_str_from_metadata("auto-req")?,
                 Some("no") | Some("disabled")
             ) {
             AutoReqMode::Disabled
@@ -219,17 +228,17 @@ impl Config {
         for requires in find_requires(files.iter().map(|v| Path::new(&v.source)), auto_req)? {
             builder = builder.requires(Dependency::any(requires));
         }
-        if let Some(obsoletes) = get_table_from_metadata!("obsoletes") {
+        if let Some(obsoletes) = get_table_from_metadata("obsoletes")? {
             for dependency in Self::table_to_dependencies(obsoletes)? {
                 builder = builder.obsoletes(dependency);
             }
         }
-        if let Some(conflicts) = get_table_from_metadata!("conflicts") {
+        if let Some(conflicts) = get_table_from_metadata("conflicts")? {
             for dependency in Self::table_to_dependencies(conflicts)? {
                 builder = builder.conflicts(dependency);
             }
         }
-        if let Some(provides) = get_table_from_metadata!("provides") {
+        if let Some(provides) = get_table_from_metadata("provides")? {
             for dependency in Self::table_to_dependencies(provides)? {
                 builder = builder.provides(dependency);
             }
