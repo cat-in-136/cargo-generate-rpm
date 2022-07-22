@@ -22,7 +22,7 @@ struct CliSetting {
 
 fn process(
     build_target: &BuildTarget,
-    target_file: Option<PathBuf>,
+    target_path: Option<PathBuf>,
     package: Option<String>,
     setting: CliSetting,
 ) -> Result<(), Error> {
@@ -55,7 +55,18 @@ fn process(
             .map(|v| format!(".{}", v))
             .unwrap_or_default(),
     ));
-    let target_file_name = target_file.unwrap_or(default_file_name);
+
+    let target_file_name = match target_path {
+        Some(path) => {
+            if path.is_dir() {
+                path.join(default_file_name.file_name().unwrap())
+            } else {
+                path
+            }
+        }
+        None => default_file_name,
+    };
+
     if let Some(parent_dir) = target_file_name.parent() {
         if !parent_dir.exists() {
             create_dir_all(parent_dir)
@@ -75,7 +86,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
 
     let mut opts = Options::new();
     opts.optopt("a", "arch", "set target arch", "ARCH");
-    opts.optopt("o", "output", "set output file", "OUTPUT.rpm");
+    opts.optopt("o", "output", "set output file or directory", "OUTPUT");
     opts.optopt(
         "p",
         "package",
@@ -125,7 +136,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
     if let Some(target_arch) = opt_matches.opt_str("a") {
         build_target.arch = Some(target_arch);
     }
-    let target_file = opt_matches.opt_str("o").map(PathBuf::from);
+    let target_path = opt_matches.opt_str("o").map(PathBuf::from);
     let package = opt_matches.opt_str("p");
     let auto_req_mode = AutoReqMode::try_from(
         opt_matches
@@ -144,7 +155,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
 
     Ok((
         build_target,
-        target_file,
+        target_path,
         package,
         CliSetting {
             auto_req_mode,
