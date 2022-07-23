@@ -16,6 +16,7 @@ pub struct RpmBuilderConfig<'a, 'b> {
     build_target: &'a BuildTarget,
     auto_req_mode: AutoReqMode,
     payload_compress: &'b str,
+    release: Option<&'b str>,
 }
 
 impl<'a, 'b> RpmBuilderConfig<'a, 'b> {
@@ -23,11 +24,13 @@ impl<'a, 'b> RpmBuilderConfig<'a, 'b> {
         build_target: &'a BuildTarget,
         auto_req_mode: AutoReqMode,
         payload_compress: &'b str,
+        release: Option<&'b str>,
     ) -> RpmBuilderConfig<'a, 'b> {
         RpmBuilderConfig {
             build_target,
             auto_req_mode,
             payload_compress,
+            release,
         }
     }
 }
@@ -182,7 +185,9 @@ impl Config {
             builder = builder.with_file(file_source, options)?;
         }
 
-        if let Some(release) = get_str_or_i64_from_metadata!("release") {
+        if let Some(release) = rpm_builder_config.release {
+            builder = builder.release(release);
+        } else if let Some(release) = get_str_or_i64_from_metadata!("release") {
             builder = builder.release(release);
         }
         if let Some(epoch) = get_i64_from_metadata!("epoch") {
@@ -341,6 +346,7 @@ mod test {
             &BuildTarget::default(),
             AutoReqMode::Disabled,
             "zstd",
+            None,
         ));
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {

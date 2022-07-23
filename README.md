@@ -42,7 +42,7 @@ This command obtains RPM metadata from [the `Cargo.toml` file](https://doc.rust-
   * mode: the permissions as octal string. (e.g. `755` to indicate `-rwxr-xr-x`)
   * config: set true if it is a configuration file.
   * doc: set true if it is a document file.
-* release: optional string of release.
+* release: optional string of release. Ignored if `--release` is specified via CLI.
 * epoch: optional number of epoch.
 * pre_install_script: optional string of pre_install_script.
 * pre_uninstall_script: optional string of pre_uninstall_script.

@@ -18,6 +18,7 @@ mod file_info;
 struct CliSetting {
     auto_req_mode: AutoReqMode,
     payload_compress: String,
+    release: Option<String>,
 }
 
 fn process(
@@ -35,6 +36,7 @@ fn process(
             build_target,
             setting.auto_req_mode,
             setting.payload_compress.as_str(),
+            setting.release.as_deref(),
         ))?
         .build()?;
 
@@ -121,6 +123,13 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         none, gzip or zstd(Default).",
         "TYPE",
     );
+    opts.optopt(
+        "",
+        "release",
+        "set a release string for the RPM. \
+        Overrides any value specified in Cargo.toml",
+        "RELEASE",
+    );
 
     opts.optflag("h", "help", "print this help menu");
 
@@ -153,6 +162,8 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         .opt_str("payload-compress")
         .unwrap_or("zstd".to_string());
 
+    let release = opt_matches.opt_str("release");
+
     Ok((
         build_target,
         target_path,
@@ -160,6 +171,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         CliSetting {
             auto_req_mode,
             payload_compress,
+            release,
         },
     ))
 }
