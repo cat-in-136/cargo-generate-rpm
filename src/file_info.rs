@@ -5,6 +5,7 @@ use toml::value::Table;
 use crate::build_target::BuildTarget;
 use crate::error::ConfigError;
 use std::path::{Path, PathBuf};
+use toml::Value;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct FileInfo<'c, 'd> {
@@ -18,18 +19,7 @@ pub struct FileInfo<'c, 'd> {
 }
 
 impl FileInfo<'_, '_> {
-    pub fn list_from_metadata(metadata: &Table) -> Result<Vec<FileInfo>, ConfigError> {
-        let assets = metadata
-            .get("assets")
-            .ok_or(ConfigError::Missing(
-                "package.metadata.generate-rpm.assets".to_string(),
-            ))?
-            .as_array()
-            .ok_or(ConfigError::WrongType(
-                "package.metadata.generate-rpm.assets".to_string(),
-                "array",
-            ))?;
-
+    pub fn new(assets: &[Value]) -> Result<Vec<FileInfo>, ConfigError> {
         let mut files = Vec::with_capacity(assets.len());
         for (idx, value) in assets.iter().enumerate() {
             let table = value
@@ -205,7 +195,7 @@ fn _get_base_from_glob(glob: &'_ str) -> PathBuf {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::config::Config;
+    use cargo_toml::Manifest;
     use std::fs::File;
 
     #[test]
@@ -225,10 +215,18 @@ mod test {
     }
 
     #[test]
-    fn test_list_from_metadata() {
-        let config = Config::new("Cargo.toml").unwrap();
-        let metadata = config.metadata().unwrap();
-        let files = FileInfo::list_from_metadata(&metadata).unwrap();
+    fn test_new() {
+        let manifest = Manifest::from_path("Cargo.toml").unwrap();
+        let metadata = manifest.package.unwrap().metadata.unwrap();
+        let metadata = metadata
+            .as_table()
+            .unwrap()
+            .get("generate-rpm")
+            .unwrap()
+            .as_table()
+            .unwrap();
+        let assets = metadata.get("assets").and_then(|v| v.as_array()).unwrap();
+        let files = FileInfo::new(assets.as_slice()).unwrap();
         assert_eq!(
             files,
             vec![
