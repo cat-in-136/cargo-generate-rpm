@@ -1,6 +1,8 @@
+extern crate core;
+
 use crate::auto_req::AutoReqMode;
 use crate::build_target::BuildTarget;
-use crate::config::{Config, RpmBuilderConfig};
+use crate::config::{Config, ExtraMetadataSource, RpmBuilderConfig};
 use crate::error::Error;
 use getopts::Options;
 use std::convert::TryFrom;
@@ -18,6 +20,7 @@ mod file_info;
 struct CliSetting {
     auto_req_mode: AutoReqMode,
     payload_compress: String,
+    extra_metadata: Vec<ExtraMetadataSource>,
 }
 
 fn process(
@@ -28,7 +31,7 @@ fn process(
 ) -> Result<(), Error> {
     let manifest_file_dir = package.map_or(env::current_dir()?, PathBuf::from);
     let manifest_file_path = manifest_file_dir.join("Cargo.toml");
-    let config = Config::new(manifest_file_path)?;
+    let config = Config::new(&manifest_file_path, setting.extra_metadata.as_slice())?;
 
     let rpm_pkg = config
         .create_rpm_builder(RpmBuilderConfig::new(
@@ -121,6 +124,12 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         none, gzip or zstd(Default).",
         "TYPE",
     );
+    opts.optmulti(
+        "",
+        "metadata-overwrite",
+        "Overwrite metadata with TOML file",
+        "TOML",
+    );
 
     opts.optflag("h", "help", "print this help menu");
 
@@ -152,6 +161,12 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
     let payload_compress = opt_matches
         .opt_str("payload-compress")
         .unwrap_or("zstd".to_string());
+    let metadata_overwrite = opt_matches.opt_strs("metadata-overwrite");
+
+    let extra_metadata = metadata_overwrite
+        .iter()
+        .map(|v| ExtraMetadataSource::File(PathBuf::from(v)))
+        .collect::<Vec<_>>();
 
     Ok((
         build_target,
@@ -160,6 +175,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         CliSetting {
             auto_req_mode,
             payload_compress,
+            extra_metadata,
         },
     ))
 }

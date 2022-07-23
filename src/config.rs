@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -13,12 +14,31 @@ use crate::error::{ConfigError, Error};
 use crate::file_info::FileInfo;
 
 #[derive(Debug)]
+pub enum ExtraMetadataSource {
+    File(PathBuf),
+}
+
+trait TomlValueHelper<'a> {
+    fn get_str(&self, name: &str) -> Result<Option<&'a str>, ConfigError>;
+    fn get_i64(&self, name: &str) -> Result<Option<i64>, ConfigError>;
+    fn get_string_or_i64(&self, name: &str) -> Result<Option<String>, ConfigError>;
+    fn get_table(&self, name: &str) -> Result<Option<&'a Table>, ConfigError>;
+    fn get_array(&self, name: &str) -> Result<Option<&'a [Value]>, ConfigError>;
+}
+
 struct MetadataConfig<'a> {
     metadata: &'a Table,
     branch_path: Option<String>,
 }
 
 impl<'a> MetadataConfig<'a> {
+    pub fn new(metadata: &'a Table, branch_path: Option<String>) -> Self {
+        Self {
+            metadata,
+            branch_path: branch_path.map(|v| v.to_string()),
+        }
+    }
+
     pub fn new_from_manifest(manifest: &'a Manifest) -> Result<Self, Error> {
         let pkg = manifest
             .package
@@ -60,7 +80,9 @@ impl<'a> MetadataConfig<'a> {
             .unwrap_or(name.to_string());
         ConfigError::WrongType(toml_path, type_name)
     }
+}
 
+impl<'a> TomlValueHelper<'a> for MetadataConfig<'a> {
     fn get_str(&self, name: &str) -> Result<Option<&'a str>, ConfigError> {
         self.metadata
             .get(name)
@@ -113,6 +135,47 @@ impl<'a> MetadataConfig<'a> {
     }
 }
 
+struct CompoundMetadataConfig<'a> {
+    config: &'a [MetadataConfig<'a>],
+}
+
+impl<'a> CompoundMetadataConfig<'a> {
+    fn get<T, F>(&self, func: F) -> Result<Option<T>, ConfigError>
+    where
+        F: Fn(&MetadataConfig<'a>) -> Result<Option<T>, ConfigError>,
+    {
+        for item in self.config.iter().rev() {
+            match func(&item) {
+                v @ (Ok(Some(_)) | Err(_)) => return v,
+                Ok(None) => continue,
+            }
+        }
+        Ok(None)
+    }
+}
+
+impl<'a> TomlValueHelper<'a> for CompoundMetadataConfig<'a> {
+    fn get_str(&self, name: &str) -> Result<Option<&'a str>, ConfigError> {
+        self.get(|v| v.get_str(name))
+    }
+
+    fn get_i64(&self, name: &str) -> Result<Option<i64>, ConfigError> {
+        self.get(|v| v.get_i64(name))
+    }
+
+    fn get_string_or_i64(&self, name: &str) -> Result<Option<String>, ConfigError> {
+        self.get(|v| v.get_string_or_i64(name))
+    }
+
+    fn get_table(&self, name: &str) -> Result<Option<&'a Table>, ConfigError> {
+        self.get(|v| v.get_table(name))
+    }
+
+    fn get_array(&self, name: &str) -> Result<Option<&'a [Value]>, ConfigError> {
+        self.get(|v| v.get_array(name))
+    }
+}
+
 #[derive(Debug)]
 pub struct RpmBuilderConfig<'a, 'b> {
     build_target: &'a BuildTarget,
@@ -137,19 +200,35 @@ impl<'a, 'b> RpmBuilderConfig<'a, 'b> {
 #[derive(Debug)]
 pub struct Config {
     manifest: Manifest,
-    path: PathBuf,
+    manifest_path: PathBuf,
+    extra_metadata: Vec<Table>,
 }
 
 impl Config {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let path = path.as_ref().to_path_buf();
+    pub fn new(path: &Path, extra_metadata: &[ExtraMetadataSource]) -> Result<Self, Error> {
+        let manifest_path = path.to_path_buf();
+        let extra_metadata = extra_metadata
+            .iter()
+            .map(|v| match v {
+                ExtraMetadataSource::File(p) => fs::read_to_string(p)?
+                    .parse::<Value>()
+                    .map_err(|e| Error::ParseTomlFile(p.clone(), e))?
+                    .as_table()
+                    .ok_or(Error::ExtraConfig(
+                        p.clone(),
+                        ConfigError::WrongType(".".to_string(), "table"),
+                    ))
+                    .cloned(),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Manifest::from_path(&path)
             .map(|manifest| Config {
                 manifest,
-                path: path.clone(),
+                manifest_path,
+                extra_metadata,
             })
             .map_err(|err| match err {
-                CargoTomlError::Io(e) => Error::FileIo(path, e),
+                CargoTomlError::Io(e) => Error::FileIo(PathBuf::from(path), e),
                 _ => Error::CargoToml(err),
             })
     }
@@ -180,7 +259,14 @@ impl Config {
         &self,
         rpm_builder_config: RpmBuilderConfig,
     ) -> Result<RPMBuilder, Error> {
-        let metadata = MetadataConfig::new_from_manifest(&self.manifest)?;
+        let mut metadata_config = Vec::new();
+        metadata_config.push(MetadataConfig::new_from_manifest(&self.manifest)?);
+        for v in &self.extra_metadata {
+            metadata_config.push(MetadataConfig::new(v, None));
+        }
+        let metadata = CompoundMetadataConfig {
+            config: metadata_config.as_slice(),
+        };
 
         let pkg = self
             .manifest
@@ -206,7 +292,7 @@ impl Config {
             .get_array("assets")?
             .ok_or(ConfigError::Missing("package.assets".to_string()))?;
         let files = FileInfo::new(assets)?;
-        let parent = self.path.parent().unwrap();
+        let parent = self.manifest_path.parent().unwrap();
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str(rpm_builder_config.payload_compress)?);
@@ -338,23 +424,25 @@ mod test {
 
     #[test]
     fn test_config_new() {
-        let config = Config::new("Cargo.toml").unwrap();
+        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
         let pkg = config.manifest.package.unwrap();
         assert_eq!(pkg.name, "cargo-generate-rpm");
 
-        assert!(matches!(Config::new("not_exist_path/Cargo.toml"),
-            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_path/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound));
+        assert!(
+            matches!(Config::new(Path::new("not_exist_path/Cargo.toml"), &[]),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_path/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound)
+        );
         assert!(matches!(
-            Config::new("src/error.rs"),
+            Config::new(Path::new("src/error.rs"), &[]),
             Err(Error::CargoToml(_))
         ));
     }
 
     #[test]
     fn test_new() {
-        let config = Config::new("Cargo.toml").unwrap();
+        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
         assert_eq!(config.manifest.package.unwrap().name, "cargo-generate-rpm");
-        assert_eq!(config.path, PathBuf::from("Cargo.toml"));
+        assert_eq!(config.manifest_path, PathBuf::from("Cargo.toml"));
     }
 
     #[test]
@@ -426,7 +514,7 @@ mod test {
 
     #[test]
     fn test_config_create_rpm_builder() {
-        let config = Config::new("Cargo.toml").unwrap();
+        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
         let builder = config.create_rpm_builder(RpmBuilderConfig::new(
             &BuildTarget::default(),
             AutoReqMode::Disabled,

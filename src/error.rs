@@ -3,6 +3,7 @@ use rpm::RPMError;
 use std::ffi::OsString;
 use std::io::Error as IoError;
 use std::path::PathBuf;
+use toml::de::Error as TomlDeError;
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum ConfigError {
@@ -42,6 +43,10 @@ pub enum Error {
     CargoToml(#[from] CargoTomlError),
     #[error(transparent)]
     Config(#[from] ConfigError),
+    #[error("{1}: {0}")]
+    ParseTomlFile(PathBuf, #[source] TomlDeError),
+    #[error("{1}: {0}")]
+    ExtraConfig(PathBuf, #[source] ConfigError),
     #[error(transparent)]
     AutoReq(#[from] AutoReqError),
     #[error(transparent)]
