@@ -56,7 +56,7 @@ impl<'a> MetadataConfig<'a> {
         let toml_path = self
             .branch_path
             .as_ref()
-            .map(|v| [v, name].join(","))
+            .map(|v| [v, name].join("."))
             .unwrap_or(name.to_string());
         ConfigError::WrongType(toml_path, type_name)
     }
@@ -277,6 +277,64 @@ mod test {
     use cargo_toml::Value;
 
     use super::*;
+
+    #[test]
+    fn test_metadata_config() {
+        let metadata = r#"
+            str = "str"
+            int = 256
+            table = { int = 128 }
+            array = [ 1, 2 ]
+        "#
+        .parse::<Value>()
+        .unwrap();
+        let metadata_config = MetadataConfig {
+            metadata: metadata.as_table().unwrap(),
+            branch_path: None,
+        };
+
+        assert_eq!(metadata_config.get_str("str").unwrap(), Some("str"));
+        assert_eq!(metadata_config.get_i64("int").unwrap(), Some(256));
+        assert_eq!(
+            metadata_config.get_string_or_i64("str").unwrap(),
+            Some("str".to_string())
+        );
+        assert_eq!(
+            metadata_config.get_string_or_i64("int").unwrap(),
+            Some("256".to_string())
+        );
+        assert_eq!(
+            metadata_config.get_table("table").unwrap(),
+            "int = 128".parse::<Value>().unwrap().as_table()
+        );
+        assert_eq!(
+            metadata_config.get_array("array").unwrap().unwrap(),
+            [Value::Integer(1), Value::Integer(2)]
+        );
+
+        assert_eq!(metadata_config.get_str("not-exist").unwrap(), None);
+        assert!(matches!(
+            metadata_config.get_str("int"),
+            Err(ConfigError::WrongType(v, "string")) if v == "int".to_string()
+        ));
+        assert!(matches!(
+            metadata_config.get_string_or_i64("array"),
+            Err(ConfigError::WrongType(v, "string or integer")) if v == "array".to_string()
+        ));
+
+        let metadata_config = MetadataConfig {
+            metadata: metadata.as_table().unwrap(),
+            branch_path: Some("branch".to_string()),
+        };
+        assert!(matches!(
+            metadata_config.get_str("int"),
+            Err(ConfigError::WrongType(v, "string")) if v == "branch.int".to_string()
+        ));
+        assert!(matches!(
+            metadata_config.get_string_or_i64("array"),
+            Err(ConfigError::WrongType(v, "string or integer")) if v == "branch.array".to_string()
+        ));
+    }
 
     #[test]
     fn test_config_new() {
