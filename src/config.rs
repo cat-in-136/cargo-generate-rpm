@@ -423,6 +423,28 @@ mod test {
     }
 
     #[test]
+    fn test_compound_metadata_config() {
+        let metadata = [
+            "a = 1\nb = 2".parse::<Value>().unwrap(),
+            "b = 3\nc = 4".parse::<Value>().unwrap(),
+        ];
+        let metadata_config = metadata
+            .iter()
+            .map(|v| MetadataConfig {
+                metadata: v.as_table().unwrap(),
+                branch_path: None,
+            })
+            .collect::<Vec<_>>();
+        let metadata = CompoundMetadataConfig {
+            config: metadata_config.as_slice(),
+        };
+        assert_eq!(metadata.get_i64("a").unwrap(), Some(1));
+        assert_eq!(metadata.get_i64("b").unwrap(), Some(3));
+        assert_eq!(metadata.get_i64("c").unwrap(), Some(4));
+        assert_eq!(metadata.get_i64("not-exist").unwrap(), None);
+    }
+
+    #[test]
     fn test_config_new() {
         let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
         let pkg = config.manifest.package.unwrap();
