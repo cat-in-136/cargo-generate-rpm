@@ -361,19 +361,18 @@ impl Config {
 #[cfg(test)]
 mod test {
     use cargo_toml::Value;
+    use toml::toml;
 
     use super::*;
 
     #[test]
     fn test_metadata_config() {
-        let metadata = r#"
+        let metadata = toml! {
             str = "str"
             int = 256
             table = { int = 128 }
             array = [ 1, 2 ]
-        "#
-        .parse::<Value>()
-        .unwrap();
+        };
         let metadata_config = MetadataConfig {
             metadata: metadata.as_table().unwrap(),
             branch_path: None,
@@ -425,8 +424,14 @@ mod test {
     #[test]
     fn test_compound_metadata_config() {
         let metadata = [
-            "a = 1\nb = 2".parse::<Value>().unwrap(),
-            "b = 3\nc = 4".parse::<Value>().unwrap(),
+            toml! {
+                a = 1
+                b = 2
+            },
+            toml! {
+                b = 3
+                c = 4
+            },
         ];
         let metadata_config = metadata
             .iter()
