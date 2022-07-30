@@ -107,6 +107,7 @@ mod toml_dotted_bare_key_parser {
 #[derive(Debug, Clone)]
 pub enum ExtraMetadataSource {
     File(PathBuf, Option<String>),
+    Text(String),
 }
 
 #[derive(Debug)]
@@ -116,11 +117,21 @@ impl ExtraMetaData {
     pub fn new(source: &ExtraMetadataSource) -> Result<Self, Error> {
         match source {
             ExtraMetadataSource::File(p, branch) => {
+                let annot: Option<PathBuf> = Some(p.clone());
                 let toml = fs::read_to_string(p)?
                     .parse::<Value>()
-                    .map_err(|e| FileAnnotatedError::new(Some(p), e))?;
+                    .map_err(|e| FileAnnotatedError(annot.clone(), e))?;
                 let table = Self::convert_toml_txt_to_table(&toml, branch)
-                    .map_err(|e| FileAnnotatedError::new(Some(p), e))?;
+                    .map_err(|e| FileAnnotatedError(annot, e))?;
+                Ok(Self(table.clone(), source.clone()))
+            }
+            ExtraMetadataSource::Text(text) => {
+                let annot: Option<PathBuf> = None;
+                let toml = text
+                    .parse::<Value>()
+                    .map_err(|e| FileAnnotatedError(annot.clone(), e))?;
+                let table = Self::convert_toml_txt_to_table(&toml, &None as &_)
+                    .map_err(|e| FileAnnotatedError(annot, e))?;
                 Ok(Self(table.clone(), source.clone()))
             }
         }
@@ -134,20 +145,17 @@ impl ExtraMetaData {
             .as_table()
             .ok_or(ConfigError::WrongType(".".to_string(), "table"))?;
 
-        let table = if let Some(branch) = branch {
+        if let Some(branch) = branch {
             toml_dotted_bare_key_parser::parse_dotted_bare_keys(branch.as_ref())
                 .map_err(|e| ConfigError::WrongBranchPathOfToml(branch.clone(), e))?
                 .iter()
                 .fold(Some(root), |table, key| {
                     table.and_then(|v| v.get(*key).and_then(|v| v.as_table()))
                 })
-                .ok_or(ConfigError::BranchPathNotFoundInToml(
-                    branch.to_string(),
-                ))?
+                .ok_or(ConfigError::BranchPathNotFoundInToml(branch.to_string()))
         } else {
-            root
-        };
-        Ok(table)
+            Ok(root)
+        }
     }
 }
 

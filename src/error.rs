@@ -4,7 +4,7 @@ use std::error::Error as StdError;
 use std::ffi::OsString;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use toml::de::Error as TomlDeError;
 
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, Hash)]
@@ -54,13 +54,7 @@ pub enum AutoReqError {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub struct FileAnnotatedError<E: StdError + Display>(Option<PathBuf>, #[source] E);
-
-impl<E: StdError + Display> FileAnnotatedError<E> {
-    pub(crate) fn new<P: AsRef<Path>>(path: Option<P>, source: E) -> Self {
-        Self(path.map(|v| PathBuf::from(v.as_ref())), source)
-    }
-}
+pub struct FileAnnotatedError<E: StdError + Display>(pub Option<PathBuf>, #[source] pub  E);
 
 impl<E: StdError + Display> Display for FileAnnotatedError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

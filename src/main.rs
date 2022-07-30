@@ -131,6 +131,12 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         if \"#dotted.key\" suffixed, load \"dotted.key\" table instead of the root table.",
         "TOML_FILE",
     );
+    opts.optmulti(
+        "",
+        "metadata-overwrite-inline",
+        "Overwrite metadata with TOML text.",
+        "TOML",
+    );
 
     opts.optflag("h", "help", "print this help menu");
 
@@ -162,19 +168,26 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
     let payload_compress = opt_matches
         .opt_str("payload-compress")
         .unwrap_or("zstd".to_string());
-    let metadata_overwrite = opt_matches.opt_strs("metadata-overwrite");
+    let metadata_overwrite = opt_matches.opt_strs_pos("metadata-overwrite");
+    let metadata_overwrite_inline = opt_matches.opt_strs_pos("metadata-overwrite-inline");
 
-    let extra_metadata = metadata_overwrite
+    let mut extra_metadata = metadata_overwrite
         .iter()
-        .map(|v| {
+        .map(|(i, v)| {
             let (file, branch) = match v.split_once("#") {
                 None => (PathBuf::from(v), None),
                 Some((file, branch)) => (PathBuf::from(file), Some(branch.to_string())),
             };
-            ExtraMetadataSource::File(file, branch)
+            (*i, ExtraMetadataSource::File(file, branch))
         })
+        .chain(
+            metadata_overwrite_inline
+                .iter()
+                .map(|(i, v)| (*i, ExtraMetadataSource::Text(v.to_string()))),
+        )
         .collect::<Vec<_>>();
-
+    extra_metadata.sort_by_key(|(i, _)| *i);
+    let extra_metadata = extra_metadata.iter().map(|(_, v)| v).cloned().collect();
     Ok((
         build_target,
         target_path,
