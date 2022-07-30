@@ -10,12 +10,145 @@ use toml::Value;
 
 use crate::auto_req::{find_requires, AutoReqMode};
 use crate::build_target::BuildTarget;
-use crate::error::{ConfigError, Error};
+use crate::error::{ConfigError, Error, FileAnnotatedError};
 use crate::file_info::FileInfo;
 
-#[derive(Debug)]
+mod toml_dotted_bare_key_parser {
+    use crate::error::DottedBareKeyLexError;
+
+    pub(crate) fn parse_dotted_bare_keys(input: &str) -> Result<Vec<&str>, DottedBareKeyLexError> {
+        let mut keys = Vec::new();
+
+        let mut pos = 0;
+        while pos < input.len() {
+            if let Some(key_end) = input
+                .bytes()
+                .enumerate()
+                .skip(pos)
+                .take_while(|(_, b)| {
+                    // a bare key may contain a-zA-Z0-9_-
+                    b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-'
+                })
+                .last()
+                .map(|(i, _)| i)
+            {
+                keys.push(&input[pos..=key_end]);
+                if key_end == input.len() - 1 {
+                    break;
+                } else {
+                    pos = key_end + 1;
+                }
+            } else {
+                return Err(match input.as_bytes()[pos] {
+                    v @ (b'\"' | b'\'') => DottedBareKeyLexError::QuotedKey(v as char),
+                    b'.' => DottedBareKeyLexError::InvalidDotChar,
+                    v => DottedBareKeyLexError::InvalidChar(v as char),
+                });
+            }
+
+            match input.as_bytes()[pos] {
+                b'.' => {
+                    if pos == input.len() - 1 {
+                        return Err(DottedBareKeyLexError::InvalidDotChar);
+                    } else {
+                        // keys.push(Token::Dot);
+                        pos += 1;
+                    }
+                }
+                v => return Err(DottedBareKeyLexError::InvalidChar(v as char)),
+            }
+        }
+
+        Ok(keys)
+    }
+
+    #[test]
+    fn test_parse_dotted_bare_keys() {
+        assert_eq!(parse_dotted_bare_keys("name"), Ok(vec!["name"]));
+        assert_eq!(
+            parse_dotted_bare_keys("physical.color"),
+            Ok(vec!["physical", "color"])
+        );
+        assert_eq!(
+            parse_dotted_bare_keys("physical.color"),
+            Ok(vec!["physical", "color"])
+        );
+        assert_eq!(
+            parse_dotted_bare_keys("invalid..joined"),
+            Err(DottedBareKeyLexError::InvalidDotChar)
+        );
+        assert_eq!(
+            parse_dotted_bare_keys(".invalid.joined"),
+            Err(DottedBareKeyLexError::InvalidDotChar)
+        );
+        assert_eq!(
+            parse_dotted_bare_keys("invalid.joined."),
+            Err(DottedBareKeyLexError::InvalidDotChar)
+        );
+        assert_eq!(
+            parse_dotted_bare_keys("error.\"quoted key\""),
+            Err(DottedBareKeyLexError::QuotedKey('\"'))
+        );
+        assert_eq!(
+            parse_dotted_bare_keys("error.\'quoted key\'"),
+            Err(DottedBareKeyLexError::QuotedKey('\''))
+        );
+        assert_eq!(
+            parse_dotted_bare_keys("a-zA-Z0-9-_.*invalid*"),
+            Err(DottedBareKeyLexError::InvalidChar('*'))
+        );
+        assert_eq!(
+            parse_dotted_bare_keys("a. b .c"),
+            Err(DottedBareKeyLexError::InvalidChar(' '))
+        );
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum ExtraMetadataSource {
-    File(PathBuf),
+    File(PathBuf, Option<String>),
+}
+
+#[derive(Debug)]
+pub struct ExtraMetaData(Table, ExtraMetadataSource);
+
+impl ExtraMetaData {
+    pub fn new(source: &ExtraMetadataSource) -> Result<Self, Error> {
+        match source {
+            ExtraMetadataSource::File(p, branch) => {
+                let toml = fs::read_to_string(p)?
+                    .parse::<Value>()
+                    .map_err(|e| FileAnnotatedError::new(Some(p), e))?;
+                let table = Self::convert_toml_txt_to_table(&toml, branch)
+                    .map_err(|e| FileAnnotatedError::new(Some(p), e))?;
+                Ok(Self(table.clone(), source.clone()))
+            }
+        }
+    }
+
+    fn convert_toml_txt_to_table<'a>(
+        toml: &'a Value,
+        branch: &Option<String>,
+    ) -> Result<&'a Table, ConfigError> {
+        let root = toml
+            .as_table()
+            .ok_or(ConfigError::WrongType(".".to_string(), "table"))?;
+
+        let table = if let Some(branch) = branch {
+            toml_dotted_bare_key_parser::parse_dotted_bare_keys(branch.as_ref())
+                .map_err(|e| ConfigError::WrongBranchPathOfToml(branch.clone(), e))?
+                .iter()
+                .fold(Some(root), |table, key| {
+                    table.and_then(|v| v.get(*key).and_then(|v| v.as_table()))
+                })
+                .ok_or(ConfigError::BranchPathNotFoundInToml(
+                    branch.to_string(),
+                ))?
+        } else {
+            root
+        };
+        Ok(table)
+    }
 }
 
 trait TomlValueHelper<'a> {
@@ -37,6 +170,16 @@ impl<'a> MetadataConfig<'a> {
             metadata,
             branch_path: branch_path.map(|v| v.to_string()),
         }
+    }
+
+    pub fn new_from_extra_metadata(extra_metadata: &'a ExtraMetaData) -> Self {
+        Self::new(
+            &extra_metadata.0,
+            match &extra_metadata.1 {
+                ExtraMetadataSource::File(_, Some(branch)) => Some(branch.clone()),
+                _ => None,
+            },
+        )
     }
 
     pub fn new_from_manifest(manifest: &'a Manifest) -> Result<Self, Error> {
@@ -201,7 +344,7 @@ impl<'a, 'b> RpmBuilderConfig<'a, 'b> {
 pub struct Config {
     manifest: Manifest,
     manifest_path: PathBuf,
-    extra_metadata: Vec<Table>,
+    extra_metadata: Vec<ExtraMetaData>,
 }
 
 impl Config {
@@ -209,17 +352,7 @@ impl Config {
         let manifest_path = path.to_path_buf();
         let extra_metadata = extra_metadata
             .iter()
-            .map(|v| match v {
-                ExtraMetadataSource::File(p) => fs::read_to_string(p)?
-                    .parse::<Value>()
-                    .map_err(|e| Error::ParseTomlFile(p.clone(), e))?
-                    .as_table()
-                    .ok_or(Error::ExtraConfig(
-                        p.clone(),
-                        ConfigError::WrongType(".".to_string(), "table"),
-                    ))
-                    .cloned(),
-            })
+            .map(|v| ExtraMetaData::new(v))
             .collect::<Result<Vec<_>, _>>()?;
         Manifest::from_path(&path)
             .map(|manifest| Config {
@@ -262,7 +395,7 @@ impl Config {
         let mut metadata_config = Vec::new();
         metadata_config.push(MetadataConfig::new_from_manifest(&self.manifest)?);
         for v in &self.extra_metadata {
-            metadata_config.push(MetadataConfig::new(v, None));
+            metadata_config.push(MetadataConfig::new_from_extra_metadata(v));
         }
         let metadata = CompoundMetadataConfig {
             config: metadata_config.as_slice(),
@@ -551,7 +684,7 @@ mod test {
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
             matches!(builder, Ok(_))
         } else {
-            matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path == "target/release/cargo-generate-rpm")
+            matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path.to_str() == Some("target/release/cargo-generate-rpm"))
         });
     }
 }

@@ -120,15 +120,16 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
     opts.optopt(
         "",
         "payload-compress",
-        "Compression type of package payloads.\
+        "Compression type of package payloads. \
         none, gzip or zstd(Default).",
         "TYPE",
     );
     opts.optmulti(
         "",
         "metadata-overwrite",
-        "Overwrite metadata with TOML file",
-        "TOML",
+        "Overwrite metadata with TOML file. \
+        if \"#dotted.key\" suffixed, load \"dotted.key\" table instead of the root table.",
+        "TOML_FILE",
     );
 
     opts.optflag("h", "help", "print this help menu");
@@ -165,7 +166,13 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
 
     let extra_metadata = metadata_overwrite
         .iter()
-        .map(|v| ExtraMetadataSource::File(PathBuf::from(v)))
+        .map(|v| {
+            let (file, branch) = match v.split_once("#") {
+                None => (PathBuf::from(v), None),
+                Some((file, branch)) => (PathBuf::from(file), Some(branch.to_string())),
+            };
+            ExtraMetadataSource::File(file, branch)
+        })
         .collect::<Vec<_>>();
 
     Ok((

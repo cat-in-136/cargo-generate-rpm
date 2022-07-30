@@ -149,7 +149,7 @@ impl FileInfo<'_, '_> {
         } else if source.is_relative() && parent.as_ref().join(source.clone()).exists() {
             Ok(parent.as_ref().join(source))
         } else {
-            Err(ConfigError::AssetFileNotFound(self.source.to_string()))
+            Err(ConfigError::AssetFileNotFound(PathBuf::from(&self.source)))
         }
     }
 
@@ -290,7 +290,7 @@ mod test {
         };
         assert!(matches!(
         file_info.generate_rpm_file_path(&target, &tempdir),
-        Err(ConfigError::AssetFileNotFound(v)) if v == "not-exist-file"
+        Err(ConfigError::AssetFileNotFound(v)) if v == PathBuf::from( "not-exist-file")
         ));
 
         std::fs::create_dir_all(tempdir.path().join("target/release")).unwrap();
