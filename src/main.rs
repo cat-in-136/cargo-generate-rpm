@@ -137,6 +137,12 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         "Overwrite metadata with TOML text.",
         "TOML",
     );
+    opts.optopt(
+        "",
+        "variant",
+        "Shortcut to --metadata-overwrite=path/to/Cargo.toml#package.metadata.generate-rpm.variants.VARIANT",
+        "VARIANT",
+    );
 
     opts.optflag("h", "help", "print this help menu");
 
@@ -170,6 +176,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         .unwrap_or("zstd".to_string());
     let metadata_overwrite = opt_matches.opt_strs_pos("metadata-overwrite");
     let metadata_overwrite_inline = opt_matches.opt_strs_pos("metadata-overwrite-inline");
+    let variant = opt_matches.opt_strs_pos("variant");
 
     let mut extra_metadata = metadata_overwrite
         .iter()
@@ -185,6 +192,14 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
                 .iter()
                 .map(|(i, v)| (*i, ExtraMetadataSource::Text(v.to_string()))),
         )
+        .chain(variant.iter().map(|(i, v)| {
+            let file = match &package {
+                None => PathBuf::from("Cargo.toml"),
+                Some(package) => PathBuf::from(package).join("Cargo.toml"),
+            };
+            let branch = String::from("package.metadata.generate-rpm.variants.") + v;
+            (*i, ExtraMetadataSource::File(file, Some(branch)))
+        }))
         .collect::<Vec<_>>();
     extra_metadata.sort_by_key(|(i, _)| *i);
     let extra_metadata = extra_metadata.iter().map(|(_, v)| v).cloned().collect();
