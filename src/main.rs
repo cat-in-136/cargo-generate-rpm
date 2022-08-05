@@ -132,8 +132,8 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         "TOML_FILE",
     );
     opts.optmulti(
-        "",
-        "metadata-overwrite-inline",
+        "s",
+        "set-metadata",
         "Overwrite metadata with TOML text.",
         "TOML",
     );
@@ -175,7 +175,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         .opt_str("payload-compress")
         .unwrap_or("zstd".to_string());
     let metadata_overwrite = opt_matches.opt_strs_pos("metadata-overwrite");
-    let metadata_overwrite_inline = opt_matches.opt_strs_pos("metadata-overwrite-inline");
+    let metadata_overwrite_inline = opt_matches.opt_strs_pos("set-metadata");
     let variant = opt_matches.opt_strs_pos("variant");
 
     let mut extra_metadata = metadata_overwrite
