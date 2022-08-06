@@ -174,7 +174,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         .opt_str("payload-compress")
         .unwrap_or("zstd".to_string());
     let metadata_overwrite = opt_matches.opt_strs_pos("metadata-overwrite");
-    let metadata_overwrite_inline = opt_matches.opt_strs_pos("set-metadata");
+    let set_metadata = opt_matches.opt_strs_pos("set-metadata");
     let variant = opt_matches.opt_strs_pos("variant");
 
     let mut extra_metadata = metadata_overwrite
@@ -187,7 +187,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
             (*i, ExtraMetadataSource::File(file, branch))
         })
         .chain(
-            metadata_overwrite_inline
+            set_metadata
                 .iter()
                 .map(|(i, v)| (*i, ExtraMetadataSource::Text(v.to_string()))),
         )
