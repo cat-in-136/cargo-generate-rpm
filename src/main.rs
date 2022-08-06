@@ -14,7 +14,6 @@ mod auto_req;
 mod build_target;
 mod config;
 mod error;
-mod file_info;
 
 #[derive(Debug)]
 struct CliSetting {
