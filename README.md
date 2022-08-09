@@ -28,7 +28,7 @@ In advance, run `cargo run --release` and strip the debug symbols (`strip -s tar
 
 ## Configuration
 
-This command obtains RPM metadata from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.html):
+This command generates RPM metadata from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.html):
 
 ### `[package.metadata.generate-rpm]` options
 
@@ -92,6 +92,23 @@ the user who executes this command may specify command line option `--auto-req n
  * `--auto-req builtin`: the builtin procedure using `ldd` is used.
  * `--auto-req /path/to/find-requires`: the specified external program is used. This behavior is the same as the original `rpmbuild`. 
  * `--auto-req no`: the process is disabled.
+
+### Overwrite configuration
+
+`[package.metadata.generate-rpm]` can be overwritten. The following command line options are used:
+
+ * `--metadata-overwrite=TOML_FILE.toml` : Overwrite the `[package.metadata.generate-rpm]` options with the contents of the specified TOML file.
+ * `--metadata-overwrite=TOML_FILE.toml#TOML.PATH` : Overwrites the `[package.metadata.generate-rpm]` options with the table specified in the TOML path of the TOML file.
+   Only a sequence of bare keys connected by dots is acceptable for the TOML path.
+   Path containing quoted keys (such as `metadata."παραλλαγή"`) cannot be acceptable.
+ * `-s 'toml "text"'` or `--set-metadata='toml "text"'` : Overwrite the `[package.metadata.generate-rpm]` options with inline TOML text.
+   The argument text --- inline TOML text must be enclosed in quotation marks since it contains spaces.
+ * `--variant=VARIANT` : Overwrites the `[package.metadata.generate-rpm]` options with the table specified in `[package.metadata.generate-rpm.variants.VARIANT]` of the TOML file.
+   It is a shortcut to `--metadata-overwrite=path/to/Cargo.toml#package.metadata.generate-rpm.variants.VARIANT`.
+   It is intended for providing multiple variants of the metadata in a Cargo.toml and ability for the users to select the variant using --variant=name option.
+
+These options can be specified more than once, with the last written one specified being applied.
+For example, the arguments -s 'release = "alpha"' `--metadata-overwrite=beta.toml` where beta.toml contains `release = "beta"` gives `release = "beta"`.
 
 ## Advanced Usage
 

@@ -9,7 +9,17 @@ use toml::value::Table;
 use crate::auto_req::{find_requires, AutoReqMode};
 use crate::build_target::BuildTarget;
 use crate::error::{ConfigError, Error};
-use crate::file_info::FileInfo;
+use file_info::FileInfo;
+use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueHelper};
+
+mod file_info;
+mod metadata;
+
+#[derive(Debug, Clone)]
+pub enum ExtraMetadataSource {
+    File(PathBuf, Option<String>),
+    Text(String),
+}
 
 #[derive(Debug)]
 pub struct RpmBuilderConfig<'a, 'b> {
@@ -35,46 +45,27 @@ impl<'a, 'b> RpmBuilderConfig<'a, 'b> {
 #[derive(Debug)]
 pub struct Config {
     manifest: Manifest,
-    path: PathBuf,
+    manifest_path: PathBuf,
+    extra_metadata: Vec<ExtraMetaData>,
 }
 
 impl Config {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let path = path.as_ref().to_path_buf();
+    pub fn new(path: &Path, extra_metadata: &[ExtraMetadataSource]) -> Result<Self, Error> {
+        let manifest_path = path.to_path_buf();
+        let extra_metadata = extra_metadata
+            .iter()
+            .map(|v| ExtraMetaData::new(v))
+            .collect::<Result<Vec<_>, _>>()?;
         Manifest::from_path(&path)
             .map(|manifest| Config {
                 manifest,
-                path: path.clone(),
+                manifest_path,
+                extra_metadata,
             })
             .map_err(|err| match err {
-                CargoTomlError::Io(e) => Error::FileIo(path, e),
+                CargoTomlError::Io(e) => Error::FileIo(PathBuf::from(path), e),
                 _ => Error::CargoToml(err),
             })
-    }
-
-    pub(crate) fn metadata(&self) -> Result<&Table, ConfigError> {
-        let pkg = self
-            .manifest
-            .package
-            .as_ref()
-            .ok_or(ConfigError::Missing("package"))?;
-        let metadata = pkg
-            .metadata
-            .as_ref()
-            .ok_or(ConfigError::Missing("package.metadata"))?
-            .as_table()
-            .ok_or(ConfigError::WrongType("package.metadata", "table"))?;
-        let metadata = metadata
-            .iter()
-            .find(|(name, _)| name.as_str() == "generate-rpm")
-            .ok_or(ConfigError::Missing("package.metadata.generate-rpm"))?
-            .1
-            .as_table()
-            .ok_or(ConfigError::WrongType(
-                "package.metadata.generate-rpm",
-                "table",
-            ))?;
-        Ok(metadata)
     }
 
     fn table_to_dependencies(table: &Table) -> Result<Vec<Dependency>, ConfigError> {
@@ -103,75 +94,38 @@ impl Config {
         &self,
         rpm_builder_config: RpmBuilderConfig,
     ) -> Result<RPMBuilder, Error> {
-        let metadata = self.metadata()?;
-
-        macro_rules! get_from_metadata {
-            ($name:literal, {$($pattern:pat => $conv:expr),*}, $type_name:literal) => {
-                if let Some(val) = metadata.get($name) {
-                    use toml::value::Value::*;
-                    match val {
-                        $($pattern => $conv,)*
-                        _ => {
-                            Err(
-                                ConfigError::WrongType(
-                                    concat!("package.metadata.generate-rpm.", $name),
-                                    $type_name
-                                )
-                            )
-                        }
-                    }?
-                } else {
-                    None
-                }
-            }
+        let mut metadata_config = Vec::new();
+        metadata_config.push(MetadataConfig::new_from_manifest(&self.manifest)?);
+        for v in &self.extra_metadata {
+            metadata_config.push(MetadataConfig::new_from_extra_metadata(v));
         }
-
-        macro_rules! get_str_from_metadata {
-            ($name:expr) => {
-                get_from_metadata!($name, {
-                    String(val) => Ok(Some(val.as_str()))
-                }, "string") as Option<&str>
-            }
-        }
-        macro_rules! get_i64_from_metadata {
-            ($name:expr) => {
-                get_from_metadata!($name, {
-                    Integer(val) => Ok(Some(*val))
-                }, "integer") as Option<i64>
-            }
-        }
-        macro_rules! get_str_or_i64_from_metadata {
-            ($name:expr) => {
-                get_from_metadata!($name, {
-                    Integer(val) => Ok(Some(val.to_string())),
-                    String(val) => Ok(Some(val.clone()))
-                }, "string or integer") as Option<String>
-            }
-        }
-        macro_rules! get_table_from_metadata {
-            ($name:expr) => {
-                get_from_metadata!($name, {
-                    Table(val) => Ok(Some(val))
-                }, "table") as Option<&Table>
-            }
-        }
+        let metadata = CompoundMetadataConfig::new(metadata_config.as_slice());
 
         let pkg = self
             .manifest
             .package
             .as_ref()
-            .ok_or(ConfigError::Missing("package"))?;
-        let name = get_str_from_metadata!("name").unwrap_or_else(|| pkg.name.as_str());
-        let version = get_str_from_metadata!("version").unwrap_or_else(|| pkg.version.as_str());
-        let license = get_str_from_metadata!("license")
+            .ok_or(ConfigError::Missing("package".to_string()))?;
+        let name = metadata
+            .get_str("name")?
+            .unwrap_or_else(|| pkg.name.as_str());
+        let version = metadata
+            .get_str("version")?
+            .unwrap_or_else(|| pkg.version.as_str());
+        let license = metadata
+            .get_str("license")?
             .or_else(|| pkg.license.as_ref().map(|v| v.as_ref()))
-            .ok_or(ConfigError::Missing("package.license"))?;
+            .ok_or(ConfigError::Missing("package.license".to_string()))?;
         let arch = rpm_builder_config.build_target.binary_arch();
-        let desc = get_str_from_metadata!("summary")
+        let desc = metadata
+            .get_str("summary")?
             .or_else(|| pkg.description.as_ref().map(|v| v.as_ref()))
-            .ok_or(ConfigError::Missing("package.description"))?;
-        let files = FileInfo::list_from_metadata(&metadata)?;
-        let parent = self.path.parent().unwrap();
+            .ok_or(ConfigError::Missing("package.description".to_string()))?;
+        let assets = metadata
+            .get_array("assets")?
+            .ok_or(ConfigError::Missing("package.assets".to_string()))?;
+        let files = FileInfo::new(assets)?;
+        let parent = self.manifest_path.parent().unwrap();
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str(rpm_builder_config.payload_compress)?);
@@ -182,36 +136,34 @@ impl Config {
             builder = builder.with_file(file_source, options)?;
         }
 
-        if let Some(release) = get_str_or_i64_from_metadata!("release") {
+        if let Some(release) = metadata.get_string_or_i64("release")? {
             builder = builder.release(release);
         }
-        if let Some(epoch) = get_i64_from_metadata!("epoch") {
+        if let Some(epoch) = metadata.get_i64("epoch")? {
             builder = builder.epoch(epoch as i32);
         }
 
-        if let Some(pre_install_script) = get_str_from_metadata!("pre_install_script") {
+        if let Some(pre_install_script) = metadata.get_str("pre_install_script")? {
             builder = builder.pre_install_script(pre_install_script);
         }
-        if let Some(pre_uninstall_script) = get_str_from_metadata!("pre_uninstall_script") {
+        if let Some(pre_uninstall_script) = metadata.get_str("pre_uninstall_script")? {
             builder = builder.pre_uninstall_script(pre_uninstall_script);
         }
-        if let Some(post_install_script) = get_str_from_metadata!("post_install_script") {
+        if let Some(post_install_script) = metadata.get_str("post_install_script")? {
             builder = builder.post_install_script(post_install_script);
         }
-        if let Some(post_uninstall_script) = get_str_from_metadata!("post_uninstall_script") {
+        if let Some(post_uninstall_script) = metadata.get_str("post_uninstall_script")? {
             builder = builder.post_uninstall_script(post_uninstall_script);
         }
 
-        if let Some(requires) = get_table_from_metadata!("requires") {
+        if let Some(requires) = metadata.get_table("requires")? {
             for dependency in Self::table_to_dependencies(requires)? {
                 builder = builder.requires(dependency);
             }
         }
         let auto_req = if rpm_builder_config.auto_req_mode == AutoReqMode::Auto
-            && matches!(
-                get_str_from_metadata!("auto-req"),
-                Some("no") | Some("disabled")
-            ) {
+            && matches!(metadata.get_str("auto-req")?, Some("no") | Some("disabled"))
+        {
             AutoReqMode::Disabled
         } else {
             rpm_builder_config.auto_req_mode
@@ -219,17 +171,17 @@ impl Config {
         for requires in find_requires(files.iter().map(|v| Path::new(&v.source)), auto_req)? {
             builder = builder.requires(Dependency::any(requires));
         }
-        if let Some(obsoletes) = get_table_from_metadata!("obsoletes") {
+        if let Some(obsoletes) = metadata.get_table("obsoletes")? {
             for dependency in Self::table_to_dependencies(obsoletes)? {
                 builder = builder.obsoletes(dependency);
             }
         }
-        if let Some(conflicts) = get_table_from_metadata!("conflicts") {
+        if let Some(conflicts) = metadata.get_table("conflicts")? {
             for dependency in Self::table_to_dependencies(conflicts)? {
                 builder = builder.conflicts(dependency);
             }
         }
-        if let Some(provides) = get_table_from_metadata!("provides") {
+        if let Some(provides) = metadata.get_table("provides")? {
             for dependency in Self::table_to_dependencies(provides)? {
                 builder = builder.provides(dependency);
             }
@@ -247,24 +199,25 @@ mod test {
 
     #[test]
     fn test_config_new() {
-        let config = Config::new("Cargo.toml").unwrap();
+        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
         let pkg = config.manifest.package.unwrap();
         assert_eq!(pkg.name, "cargo-generate-rpm");
 
-        assert!(matches!(Config::new("not_exist_path/Cargo.toml"),
-            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_path/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound));
+        assert!(
+            matches!(Config::new(Path::new("not_exist_path/Cargo.toml"), &[]),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_path/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound)
+        );
         assert!(matches!(
-            Config::new("src/error.rs"),
+            Config::new(Path::new("src/error.rs"), &[]),
             Err(Error::CargoToml(_))
         ));
     }
 
     #[test]
-    fn test_metadata() {
-        let config = Config::new("Cargo.toml").unwrap();
-        let metadata = config.metadata().unwrap();
-        let assets = metadata.get("assets").unwrap();
-        assert!(assets.is_array());
+    fn test_new() {
+        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
+        assert_eq!(config.manifest.package.unwrap().name, "cargo-generate-rpm");
+        assert_eq!(config.manifest_path, PathBuf::from("Cargo.toml"));
     }
 
     #[test]
@@ -336,7 +289,7 @@ mod test {
 
     #[test]
     fn test_config_create_rpm_builder() {
-        let config = Config::new("Cargo.toml").unwrap();
+        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
         let builder = config.create_rpm_builder(RpmBuilderConfig::new(
             &BuildTarget::default(),
             AutoReqMode::Disabled,
@@ -346,7 +299,7 @@ mod test {
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
             matches!(builder, Ok(_))
         } else {
-            matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path == "target/release/cargo-generate-rpm")
+            matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path.to_str() == Some("target/release/cargo-generate-rpm"))
         });
     }
 }
