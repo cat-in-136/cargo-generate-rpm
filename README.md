@@ -54,6 +54,17 @@ This command generates RPM metadata from [the `Cargo.toml` file](https://doc.rus
 * conflicts: optional list of Conflicts
 * provides: optional list of Provides
 
+Adding assets such as the binary file, ``.desktop`` file, or icons, shall be written in the following way.
+
+```toml
+[package.metadata.generate-rpm]
+assets = [
+  { source = "target/release/XXX", dest = "/usr/bin/XXX", mode = "755" },
+  { source = "<path_relative_to_project_root>/XXX.desktop", dest = "/usr/share/applications/XXX.desktop", mode = "644" },
+  { source = "<path_relative_to_project_root>/*/apps/XXX.png", dest = "/usr/share/icons/hicolor/", mode = "644" },
+]
+```
+
 ### `[package.metadata.generate-rpm.{requires,obsoletes,conflicts,provides}]` options
 
 Dependencies such as "requires", "obsoletes", "conflicts", and "provides" shall be written in similar way as dependencies in Cargo.toml.
