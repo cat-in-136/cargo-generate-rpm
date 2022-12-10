@@ -236,6 +236,58 @@ mod test {
     }
 
     #[test]
+    fn test_config_new_with_workspace() {
+        let tempdir = tempfile::tempdir().unwrap();
+
+        let workspace_dir = tempdir.path().join("workspace");
+        let project_dir = workspace_dir.join("bar");
+
+        std::fs::create_dir(&workspace_dir).unwrap();
+        std::fs::write(
+            &workspace_dir.join("Cargo.toml"),
+            r#"
+[workspace]
+members = ["bar"]
+
+[workspace.package]
+version = "1.2.3"
+authors = ["Nice Folks"]
+description = "A short description of my package"
+documentation = "https://example.com/bar"
+        "#,
+        )
+        .unwrap();
+        std::fs::create_dir(&project_dir).unwrap();
+        std::fs::write(
+            &project_dir.join("Cargo.toml"),
+            r#"
+[package]
+name = "bar"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+        "#,
+        )
+        .unwrap();
+
+        let config =
+            Config::new(project_dir.as_path(), Some(workspace_dir.as_path()), &[]).unwrap();
+        let pkg = config.manifest.package.unwrap();
+        assert_eq!(pkg.name, "bar");
+        assert_eq!(pkg.version.get().unwrap(), "1.2.3");
+
+        assert!(
+            matches!(Config::new(Path::new("not_exist_dir"), Some(workspace_dir.as_path()), &[]),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_dir/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound)
+        );
+        assert!(
+            matches!(Config::new(project_dir.as_path(), Some(Path::new("not_exist_dir")), &[]),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_dir/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound)
+        );
+    }
+
+    #[test]
     fn test_new() {
         let config = Config::new(Path::new(""), None, &[]).unwrap();
         assert_eq!(config.manifest.package.unwrap().name, "cargo-generate-rpm");
