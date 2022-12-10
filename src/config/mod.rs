@@ -50,22 +50,43 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(path: &Path, extra_metadata: &[ExtraMetadataSource]) -> Result<Self, Error> {
-        let manifest_path = path.to_path_buf();
+    pub fn new(
+        project_base_path: &Path,
+        workspace_base_path: Option<&Path>,
+        extra_metadata: &[ExtraMetadataSource],
+    ) -> Result<Self, Error> {
+        let manifest_path = Self::create_cargo_toml_path(project_base_path);
+        let mut manifest = Manifest::from_path(&manifest_path).map_err(|err| match err {
+            CargoTomlError::Io(e) => Error::FileIo(manifest_path.to_path_buf(), e),
+            _ => Error::CargoToml(err),
+        })?;
+
+        if let Some(p) = workspace_base_path {
+            let workspace_manifest_path = Self::create_cargo_toml_path(p);
+            let workspace_manifest =
+                Manifest::from_path(&workspace_manifest_path).map_err(|err| match err {
+                    CargoTomlError::Io(e) => {
+                        Error::FileIo(workspace_manifest_path.to_path_buf(), e)
+                    }
+                    _ => Error::CargoToml(err),
+                })?;
+            manifest.inherit_workspace(&workspace_manifest, p.as_ref())?;
+        }
+
         let extra_metadata = extra_metadata
             .iter()
             .map(|v| ExtraMetaData::new(v))
             .collect::<Result<Vec<_>, _>>()?;
-        Manifest::from_path(&path)
-            .map(|manifest| Config {
-                manifest,
-                manifest_path,
-                extra_metadata,
-            })
-            .map_err(|err| match err {
-                CargoTomlError::Io(e) => Error::FileIo(PathBuf::from(path), e),
-                _ => Error::CargoToml(err),
-            })
+
+        Ok(Config {
+            manifest,
+            manifest_path,
+            extra_metadata,
+        })
+    }
+
+    pub(crate) fn create_cargo_toml_path<P: AsRef<Path>>(base_path: P) -> PathBuf {
+        base_path.as_ref().join("Cargo.toml")
     }
 
     fn table_to_dependencies(table: &Table) -> Result<Vec<Dependency>, ConfigError> {
@@ -109,18 +130,21 @@ impl Config {
         let name = metadata
             .get_str("name")?
             .unwrap_or_else(|| pkg.name.as_str());
-        let version = metadata
-            .get_str("version")?
-            .unwrap_or_else(|| pkg.version.as_str());
-        let license = metadata
-            .get_str("license")?
-            .or_else(|| pkg.license.as_ref().map(|v| v.as_ref()))
-            .ok_or(ConfigError::Missing("package.license".to_string()))?;
+        let version = match metadata.get_str("version")? {
+            Some(v) => v,
+            None => pkg.version.get()?,
+        };
+        let license = match (metadata.get_str("license")?, pkg.license.as_ref()) {
+            (Some(v), _) => v,
+            (None, None) => Err(ConfigError::Missing("package.license".to_string()))?,
+            (None, Some(v)) => v.get()?,
+        };
         let arch = rpm_builder_config.build_target.binary_arch();
-        let desc = metadata
-            .get_str("summary")?
-            .or_else(|| pkg.description.as_ref().map(|v| v.as_ref()))
-            .ok_or(ConfigError::Missing("package.description".to_string()))?;
+        let desc = match (metadata.get_str("description")?, pkg.description.as_ref()) {
+            (Some(v), _) => v,
+            (None, None) => Err(ConfigError::Missing("package.description".to_string()))?,
+            (None, Some(v)) => v.get()?,
+        };
         let assets = metadata
             .get_array("assets")?
             .ok_or(ConfigError::Missing("package.assets".to_string()))?;
@@ -199,23 +223,73 @@ mod test {
 
     #[test]
     fn test_config_new() {
-        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
+        let config = Config::new(Path::new("."), None, &[]).unwrap();
         let pkg = config.manifest.package.unwrap();
         assert_eq!(pkg.name, "cargo-generate-rpm");
 
+        assert!(matches!(Config::new(Path::new("not_exist_dir"), None, &[]),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_dir/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound));
         assert!(
-            matches!(Config::new(Path::new("not_exist_path/Cargo.toml"), &[]),
-            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_path/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound)
+            matches!(Config::new(Path::new(""), Some(Path::new("not_exist_dir")), &[]),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_dir/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound)
         );
-        assert!(matches!(
-            Config::new(Path::new("src/error.rs"), &[]),
-            Err(Error::CargoToml(_))
-        ));
+    }
+
+    #[test]
+    fn test_config_new_with_workspace() {
+        let tempdir = tempfile::tempdir().unwrap();
+
+        let workspace_dir = tempdir.path().join("workspace");
+        let project_dir = workspace_dir.join("bar");
+
+        std::fs::create_dir(&workspace_dir).unwrap();
+        std::fs::write(
+            &workspace_dir.join("Cargo.toml"),
+            r#"
+[workspace]
+members = ["bar"]
+
+[workspace.package]
+version = "1.2.3"
+authors = ["Nice Folks"]
+description = "A short description of my package"
+documentation = "https://example.com/bar"
+        "#,
+        )
+        .unwrap();
+        std::fs::create_dir(&project_dir).unwrap();
+        std::fs::write(
+            &project_dir.join("Cargo.toml"),
+            r#"
+[package]
+name = "bar"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+        "#,
+        )
+        .unwrap();
+
+        let config =
+            Config::new(project_dir.as_path(), Some(workspace_dir.as_path()), &[]).unwrap();
+        let pkg = config.manifest.package.unwrap();
+        assert_eq!(pkg.name, "bar");
+        assert_eq!(pkg.version.get().unwrap(), "1.2.3");
+
+        assert!(
+            matches!(Config::new(Path::new("not_exist_dir"), Some(workspace_dir.as_path()), &[]),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_dir/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound)
+        );
+        assert!(
+            matches!(Config::new(project_dir.as_path(), Some(Path::new("not_exist_dir")), &[]),
+            Err(Error::FileIo(path, error)) if path == PathBuf::from("not_exist_dir/Cargo.toml") && error.kind() == std::io::ErrorKind::NotFound)
+        );
     }
 
     #[test]
     fn test_new() {
-        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
+        let config = Config::new(Path::new(""), None, &[]).unwrap();
         assert_eq!(config.manifest.package.unwrap().name, "cargo-generate-rpm");
         assert_eq!(config.manifest_path, PathBuf::from("Cargo.toml"));
     }
@@ -289,7 +363,7 @@ mod test {
 
     #[test]
     fn test_config_create_rpm_builder() {
-        let config = Config::new(Path::new("Cargo.toml"), &[]).unwrap();
+        let config = Config::new(Path::new("."), None, &[]).unwrap();
         let builder = config.create_rpm_builder(RpmBuilderConfig::new(
             &BuildTarget::default(),
             AutoReqMode::Disabled,

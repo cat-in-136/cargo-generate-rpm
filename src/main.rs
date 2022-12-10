@@ -8,7 +8,7 @@ use getopts::Options;
 use std::convert::TryFrom;
 use std::env;
 use std::fs::{create_dir_all, File};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod auto_req;
 mod build_target;
@@ -28,9 +28,15 @@ fn process(
     package: Option<String>,
     setting: CliSetting,
 ) -> Result<(), Error> {
-    let manifest_file_dir = package.map_or(env::current_dir()?, PathBuf::from);
-    let manifest_file_path = manifest_file_dir.join("Cargo.toml");
-    let config = Config::new(&manifest_file_path, setting.extra_metadata.as_slice())?;
+    let config = if let Some(p) = package {
+        Config::new(
+            Path::new(&p),
+            Some(Path::new("")),
+            setting.extra_metadata.as_slice(),
+        )?
+    } else {
+        Config::new(Path::new(""), None, setting.extra_metadata.as_slice())?
+    };
 
     let rpm_pkg = config
         .create_rpm_builder(RpmBuilderConfig::new(
@@ -192,10 +198,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
                 .map(|(i, v)| (*i, ExtraMetadataSource::Text(v.to_string()))),
         )
         .chain(variant.iter().map(|(i, v)| {
-            let file = match &package {
-                None => PathBuf::from("Cargo.toml"),
-                Some(package) => PathBuf::from(package).join("Cargo.toml"),
-            };
+            let file = Config::create_cargo_toml_path(package.as_ref().unwrap_or(&"".to_string()));
             let branch = String::from("package.metadata.generate-rpm.variants.") + v;
             (*i, ExtraMetadataSource::File(file, Some(branch)))
         }))
