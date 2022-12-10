@@ -109,18 +109,21 @@ impl Config {
         let name = metadata
             .get_str("name")?
             .unwrap_or_else(|| pkg.name.as_str());
-        let version = metadata
-            .get_str("version")?
-            .unwrap_or_else(|| pkg.version.as_str());
-        let license = metadata
-            .get_str("license")?
-            .or_else(|| pkg.license.as_ref().map(|v| v.as_ref()))
-            .ok_or(ConfigError::Missing("package.license".to_string()))?;
+        let version = match metadata.get_str("version")? {
+            Some(v) => v,
+            None => pkg.version.get()?,
+        };
+        let license = match (metadata.get_str("license")?, pkg.license.as_ref()) {
+            (Some(v), _) => v,
+            (None, None) => Err(ConfigError::Missing("package.license".to_string()))?,
+            (None, Some(v)) => v.get()?,
+        };
         let arch = rpm_builder_config.build_target.binary_arch();
-        let desc = metadata
-            .get_str("summary")?
-            .or_else(|| pkg.description.as_ref().map(|v| v.as_ref()))
-            .ok_or(ConfigError::Missing("package.description".to_string()))?;
+        let desc = match (metadata.get_str("description")?, pkg.description.as_ref()) {
+            (Some(v), _) => v,
+            (None, None) => Err(ConfigError::Missing("package.description".to_string()))?,
+            (None, Some(v)) => v.get()?,
+        };
         let assets = metadata
             .get_array("assets")?
             .ok_or(ConfigError::Missing("package.assets".to_string()))?;
