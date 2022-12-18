@@ -56,12 +56,17 @@ impl Config {
         extra_metadata: &[ExtraMetadataSource],
     ) -> Result<Self, Error> {
         let manifest_path = Self::create_cargo_toml_path(project_base_path);
-        let mut manifest = Manifest::from_path(&manifest_path).map_err(|err| match err {
-            CargoTomlError::Io(e) => Error::FileIo(manifest_path.to_path_buf(), e),
-            _ => Error::CargoToml(err),
-        })?;
 
-        if let Some(p) = workspace_base_path {
+        let manifest = if let Some(p) = workspace_base_path {
+            // HACK when workspace used, manifest is generated from slice directly instead of
+            // `from_path_with_metadata`. Because it call `inherit_workspace`, which yields an error
+            // in case `edition.workspace = true` specified in the project manifest file.
+            // TODO future fix when https://gitlab.com/crates.rs/cargo_toml/-/issues/20 fixed
+
+            let cargo_toml_content = std::fs::read(&manifest_path)
+                .map_err(|e| Error::FileIo(manifest_path.clone(), e))?;
+            let mut manifest = Manifest::from_slice_with_metadata(&cargo_toml_content)?;
+
             let workspace_manifest_path = Self::create_cargo_toml_path(p);
             let workspace_manifest =
                 Manifest::from_path(&workspace_manifest_path).map_err(|err| match err {
@@ -71,7 +76,14 @@ impl Config {
                     _ => Error::CargoToml(err),
                 })?;
             manifest.inherit_workspace(&workspace_manifest, p.as_ref())?;
-        }
+            manifest.complete_from_path(manifest_path.as_path())?;
+            manifest
+        } else {
+            Manifest::from_path(&manifest_path).map_err(|err| match err {
+                CargoTomlError::Io(e) => Error::FileIo(manifest_path.to_path_buf(), e),
+                _ => Error::CargoToml(err),
+            })?
+        };
 
         let extra_metadata = extra_metadata
             .iter()
