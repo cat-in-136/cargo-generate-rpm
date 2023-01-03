@@ -42,6 +42,8 @@ This command generates RPM metadata from [the `Cargo.toml` file](https://doc.rus
   * mode: the permissions as octal string. (e.g. `755` to indicate `-rwxr-xr-x`)
   * config: set true if it is a configuration file.
   * doc: set true if it is a document file.
+  * user: the owner of the file.
+  * group: the group owner of the file.
 * release: optional string of release.
 * epoch: optional number of epoch.
 * pre_install_script: optional string of pre_install_script.
