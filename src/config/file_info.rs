@@ -214,7 +214,13 @@ fn expand_glob(
             vec.push((file, dst));
         }
     } else if Path::new(source).exists() {
-        vec.push((PathBuf::from(source), dest.to_string()));
+        let file = PathBuf::from(source);
+        let dst = match file.file_name().map(|v| v.to_str()) {
+            Some(Some(filename)) if dest.ends_with('/') => dest.to_string() + filename,
+            _ => dest.to_string(),
+        };
+
+        vec.push((file, dst));
     }
 
     Ok(vec)
@@ -472,6 +478,19 @@ mod test {
                 2
             )
             .unwrap(),
+            vec![(
+                PathBuf::from("README.md"),
+                "/usr/share/doc/cargo-generate-rpm/README.md".into()
+            )]
+        );
+
+        assert_eq!(
+            expand_glob(
+                "README.md",
+                "/usr/share/doc/cargo-generate-rpm/", // specifying directory
+                0
+            )
+                .unwrap(),
             vec![(
                 PathBuf::from("README.md"),
                 "/usr/share/doc/cargo-generate-rpm/README.md".into()

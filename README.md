@@ -44,8 +44,8 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
 * assets: (**mandatory**) the array of the files to be included in the package
     * source: the location of that asset in the Rust project. (e.g. `target/release/XXX`)
       Wildcard character `*` is allowed.
-    * dest: the install-destination. (e.g. `/usr/bin/XXX`) If source contains wildcard character `*`, it must be a
-      directory, not a file path.
+    * dest: the install-destination. (e.g. `/usr/bin/XXX`) It shall be a file path or a directory path ending `/`.
+      If source contains wildcard character `*`, it must be a directory, not a file path.
     * mode: the permissions as octal string. (e.g. `755` to indicate `-rwxr-xr-x`)
     * config: set true if it is a configuration file.
     * doc: set true if it is a document file.
@@ -117,8 +117,9 @@ the user who executes this command may specify command line option `--auto-req n
   original `rpmbuild`.
 * `--auto-req no`: the process is disabled.
 
-`/bin/sh` is always added to the package requirements. To disable it, set `package.metadata.generate-rpm.require-sh` to `false`.
-You should not do this if you use scripts such as `pre_install_script` or if your assets contain shell scripts.
+`/bin/sh` is always added to the package requirements. To disable it, set `package.metadata.generate-rpm.require-sh`
+to `false`. You should not do this if you use scripts such as `pre_install_script` or if your assets contain shell
+scripts.
 
 ### Overwrite configuration
 
