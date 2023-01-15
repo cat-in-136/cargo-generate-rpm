@@ -449,4 +449,33 @@ mod test {
             )]
         );
     }
+
+    #[test]
+    fn test_expand_glob() {
+        assert_eq!(
+            expand_glob("*.md", "/usr/share/doc/cargo-generate-rpm/", 0).unwrap(),
+            vec![(
+                PathBuf::from("README.md"),
+                "/usr/share/doc/cargo-generate-rpm/README.md".into()
+            )]
+        );
+
+        assert_eq!(
+            expand_glob("*-not-exist-glob", "/usr/share/doc/cargo-generate-rpm/", 0).unwrap(),
+            vec![]
+        );
+
+        assert_eq!(
+            expand_glob(
+                "README.md",
+                "/usr/share/doc/cargo-generate-rpm/README.md",
+                2
+            )
+            .unwrap(),
+            vec![(
+                PathBuf::from("README.md"),
+                "/usr/share/doc/cargo-generate-rpm/README.md".into()
+            )]
+        );
+    }
 }
