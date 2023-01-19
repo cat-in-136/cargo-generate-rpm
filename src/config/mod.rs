@@ -75,8 +75,10 @@ impl Config {
                     }
                     _ => Error::CargoToml(err),
                 })?;
-            manifest.complete_from_path_and_workspace(manifest_path.as_path(), 
-            Some((&workspace_manifest, p)))?;
+            manifest.complete_from_path_and_workspace(
+                manifest_path.as_path(),
+                Some((&workspace_manifest, p)),
+            )?;
             manifest
         } else {
             Manifest::from_path(&manifest_path).map_err(|err| match err {
