@@ -48,17 +48,15 @@ fn process(
 
     let default_file_name = build_target.target_path("generate-rpm").join(format!(
         "{}-{}{}{}.rpm",
-        rpm_pkg.metadata.header.get_name()?,
-        rpm_pkg.metadata.header.get_version()?,
+        rpm_pkg.metadata.get_name()?,
+        rpm_pkg.metadata.get_version()?,
         rpm_pkg
             .metadata
-            .header
             .get_release()
             .map(|v| format!("-{}", v))
             .unwrap_or_default(),
         rpm_pkg
             .metadata
-            .header
             .get_arch()
             .map(|v| format!(".{}", v))
             .unwrap_or_default(),
