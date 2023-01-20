@@ -52,6 +52,7 @@ This command generates RPM metadata from [the `Cargo.toml` file](https://doc.rus
 * post_uninstall_script: optional string of post_uninstall_script.
 * requires: optional list of Requires
 * auto-req: optional string `"no"` to disable the automatic dependency process
+* require-sh: optional boolean `false` to omit `/bin/sh` from Requirements
 * obsoletes: optional list of Obsoletes
 * conflicts: optional list of Conflicts
 * provides: optional list of Provides
@@ -105,6 +106,9 @@ the user who executes this command may specify command line option `--auto-req n
  * `--auto-req builtin`: the builtin procedure using `ldd` is used.
  * `--auto-req /path/to/find-requires`: the specified external program is used. This behavior is the same as the original `rpmbuild`. 
  * `--auto-req no`: the process is disabled.
+
+`/bin/sh` is always added to the package requirements. To disable it, set `package.metadata.generate-rpm.require-sh` to `false`.
+You should not do this if you use scripts such as `pre_install_script` or if your assets contain shell scripts.
 
 ### Overwrite configuration
 
