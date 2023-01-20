@@ -75,8 +75,10 @@ impl Config {
                     }
                     _ => Error::CargoToml(err),
                 })?;
-            manifest.inherit_workspace(&workspace_manifest, p.as_ref())?;
-            manifest.complete_from_path(manifest_path.as_path())?;
+            manifest.complete_from_path_and_workspace(
+                manifest_path.as_path(),
+                Some((&workspace_manifest, p)),
+            )?;
             manifest
         } else {
             Manifest::from_path(&manifest_path).map_err(|err| match err {
@@ -176,7 +178,7 @@ impl Config {
             builder = builder.release(release);
         }
         if let Some(epoch) = metadata.get_i64("epoch")? {
-            builder = builder.epoch(epoch as i32);
+            builder = builder.epoch(epoch as u32);
         }
 
         if let Some(pre_install_script) = metadata.get_str("pre_install_script")? {
@@ -191,6 +193,8 @@ impl Config {
         if let Some(post_uninstall_script) = metadata.get_str("post_uninstall_script")? {
             builder = builder.post_uninstall_script(post_uninstall_script);
         }
+
+        builder = builder.requires(Dependency::any("/bin/sh".to_string()));
 
         if let Some(requires) = metadata.get_table("requires")? {
             for dependency in Self::table_to_dependencies(requires)? {
