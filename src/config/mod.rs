@@ -194,7 +194,9 @@ impl Config {
             builder = builder.post_uninstall_script(post_uninstall_script);
         }
 
-        builder = builder.requires(Dependency::any("/bin/sh".to_string()));
+        if metadata.get_bool("require-sh")?.unwrap_or(true) {
+            builder = builder.requires(Dependency::any("/bin/sh".to_string()));
+        }
 
         if let Some(requires) = metadata.get_table("requires")? {
             for dependency in Self::table_to_dependencies(requires)? {

@@ -101,6 +101,7 @@ pub(crate) trait TomlValueHelper<'a> {
     fn get_str(&self, name: &str) -> Result<Option<&'a str>, ConfigError>;
     fn get_i64(&self, name: &str) -> Result<Option<i64>, ConfigError>;
     fn get_string_or_i64(&self, name: &str) -> Result<Option<String>, ConfigError>;
+    fn get_bool(&self, name: &str) -> Result<Option<bool>, ConfigError>;
     fn get_table(&self, name: &str) -> Result<Option<&'a Table>, ConfigError>;
     fn get_array(&self, name: &str) -> Result<Option<&'a [Value]>, ConfigError>;
 }
@@ -252,6 +253,16 @@ impl<'a> TomlValueHelper<'a> for MetadataConfig<'a> {
             .unwrap_or(Ok(None))
     }
 
+    fn get_bool(&self, name: &str) -> Result<Option<bool>, ConfigError> {
+        self.metadata
+            .get(name)
+            .map(|val| match val {
+                Value::Boolean(v) => Ok(Some(*v)),
+                _ => Err(self.create_config_error(name, "bool")),
+            })
+            .unwrap_or(Ok(None))
+    }
+
     fn get_table(&self, name: &str) -> Result<Option<&'a Table>, ConfigError> {
         self.metadata
             .get(name)
@@ -309,6 +320,10 @@ impl<'a> TomlValueHelper<'a> for CompoundMetadataConfig<'a> {
         self.get(|v| v.get_string_or_i64(name))
     }
 
+    fn get_bool(&self, name: &str) -> Result<Option<bool>, ConfigError> {
+        self.get(|v| v.get_bool(name))
+    }
+
     fn get_table(&self, name: &str) -> Result<Option<&'a Table>, ConfigError> {
         self.get(|v| v.get_table(name))
     }
@@ -330,6 +345,7 @@ mod test {
         let metadata = toml! {
             str = "str"
             int = 256
+            bool = false
             table = { int = 128 }
             array = [ 1, 2 ]
         };
@@ -348,6 +364,7 @@ mod test {
             metadata_config.get_string_or_i64("int").unwrap(),
             Some("256".to_string())
         );
+        assert_eq!(metadata_config.get_bool("bool").unwrap(), Some(false));
         assert_eq!(
             metadata_config.get_table("table").unwrap(),
             "int = 128".parse::<Value>().unwrap().as_table()
