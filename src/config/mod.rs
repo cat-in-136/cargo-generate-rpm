@@ -167,11 +167,12 @@ impl Config {
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str(rpm_builder_config.payload_compress)?);
-        for file in &files {
-            let file_source =
-                file.generate_rpm_file_path(rpm_builder_config.build_target, parent)?;
-            let options = file.generate_rpm_file_options();
-            builder = builder.with_file(file_source, options)?;
+        for (idx, file) in files.iter().enumerate() {
+            let entries =
+                file.generate_rpm_file_entry(rpm_builder_config.build_target, parent, idx)?;
+            for (file_source, options) in entries {
+                builder = builder.with_file(file_source, options)?;
+            }
         }
 
         if let Some(release) = metadata.get_string_or_i64("release")? {

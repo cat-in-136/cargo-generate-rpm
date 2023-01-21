@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 use toml::Value;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct FileInfo<'c, 'd> {
-    pub source: String,
-    pub dest: String,
+pub struct FileInfo<'a, 'b, 'c, 'd> {
+    pub source: &'a str,
+    pub dest: &'b str,
     pub user: Option<&'c str>,
     pub group: Option<&'d str>,
     pub mode: Option<usize>,
@@ -18,7 +18,7 @@ pub struct FileInfo<'c, 'd> {
     pub doc: bool,
 }
 
-impl FileInfo<'_, '_> {
+impl FileInfo<'_, '_, '_, '_> {
     pub fn new(assets: &[Value]) -> Result<Vec<FileInfo>, ConfigError> {
         let mut files = Vec::with_capacity(assets.len());
         for (idx, value) in assets.iter().enumerate() {
@@ -29,14 +29,12 @@ impl FileInfo<'_, '_> {
                 .get("source")
                 .ok_or(ConfigError::AssetFileUndefined(idx, "source"))?
                 .as_str()
-                .ok_or(ConfigError::AssetFileWrongType(idx, "source", "string"))?
-                .to_owned();
+                .ok_or(ConfigError::AssetFileWrongType(idx, "source", "string"))?;
             let dest = table
                 .get("dest")
                 .ok_or(ConfigError::AssetFileUndefined(idx, "dest"))?
                 .as_str()
-                .ok_or(ConfigError::AssetFileWrongType(idx, "dest", "string"))?
-                .to_owned();
+                .ok_or(ConfigError::AssetFileWrongType(idx, "dest", "string"))?;
 
             let user = if let Some(user) = table.get("user") {
                 Some(
@@ -55,7 +53,7 @@ impl FileInfo<'_, '_> {
             } else {
                 None
             };
-            let mode = Self::get_mode(&table, &source, idx)?;
+            let mode = Self::get_mode(&table, source, idx)?;
             let config = if let Some(is_config) = table.get("config") {
                 is_config
                     .as_bool()
@@ -71,44 +69,15 @@ impl FileInfo<'_, '_> {
                 false
             };
 
-            if source.contains('*') {
-                let base = _get_base_from_glob(&source);
-                for path in glob(&source).map_err(|e| ConfigError::AssetGlobInvalid(idx, e.msg))? {
-                    let file = path.map_err(|_| ConfigError::AssetReadFailed(idx))?;
-                    if file.is_dir() {
-                        continue;
-                    }
-                    let rel_path = file.strip_prefix(&base).map_err(|_| {
-                        ConfigError::AssetGlobPathInvalid(
-                            idx,
-                            file.to_str().unwrap().to_owned(),
-                            base.to_str().unwrap().to_owned(),
-                        )
-                    })?;
-                    let dest_path = Path::new(&dest).join(rel_path);
-                    let src = file.to_str().unwrap().to_owned();
-                    let dst = dest_path.to_str().unwrap().to_owned();
-                    files.push(FileInfo {
-                        source: src,
-                        dest: dst,
-                        user,
-                        group,
-                        mode,
-                        config,
-                        doc,
-                    })
-                }
-            } else {
-                files.push(FileInfo {
-                    source,
-                    dest,
-                    user,
-                    group,
-                    mode,
-                    config,
-                    doc,
-                });
-            }
+            files.push(FileInfo {
+                source,
+                dest,
+                user,
+                group,
+                mode,
+                config,
+                doc,
+            });
         }
         Ok(files)
     }
@@ -133,28 +102,41 @@ impl FileInfo<'_, '_> {
         }
     }
 
-    pub(crate) fn generate_rpm_file_path<P: AsRef<Path>>(
+    fn generate_expanded_path<P: AsRef<Path>>(
         &self,
         build_target: &BuildTarget,
         parent: P,
-    ) -> Result<PathBuf, ConfigError> {
-        let source = if let Some(rel_path) = self.source.strip_prefix("target/release/") {
-            build_target.target_path("release").join(rel_path)
-        } else {
-            PathBuf::from(&self.source)
-        };
+        idx: usize,
+    ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
+        let source = self
+            .source
+            .strip_prefix("target/release/")
+            .and_then(|rel_path| {
+                build_target
+                    .target_path("release")
+                    .join(rel_path)
+                    .to_str()
+                    .map(|v| v.to_string())
+            })
+            .unwrap_or(self.source.to_string());
 
-        if source.exists() {
-            Ok(source)
-        } else if source.is_relative() && parent.as_ref().join(source.clone()).exists() {
-            Ok(parent.as_ref().join(source))
-        } else {
-            Err(ConfigError::AssetFileNotFound(PathBuf::from(&self.source)))
+        let expanded = expand_glob(source.as_str(), self.dest, idx)?;
+        if expanded.len() > 0 {
+            return Ok(expanded);
         }
+
+        if let Some(src) = parent.as_ref().join(&source).to_str() {
+            let expanded = expand_glob(src, self.dest, idx)?;
+            if expanded.len() > 0 {
+                return Ok(expanded);
+            }
+        }
+
+        Err(ConfigError::AssetFileNotFound(PathBuf::from(&self.source)))
     }
 
-    pub(crate) fn generate_rpm_file_options(&self) -> RPMFileOptions {
-        let mut rpm_file_option = RPMFileOptions::new(&self.dest);
+    fn generate_rpm_file_options<T: ToString>(&self, dest: T) -> RPMFileOptions {
+        let mut rpm_file_option = RPMFileOptions::new(dest.to_string());
         if let Some(user) = self.user {
             rpm_file_option = rpm_file_option.user(user);
         }
@@ -172,9 +154,23 @@ impl FileInfo<'_, '_> {
         }
         rpm_file_option.into()
     }
+
+    pub(crate) fn generate_rpm_file_entry<P: AsRef<Path>>(
+        &self,
+        build_target: &BuildTarget,
+        parent: P,
+        idx: usize,
+    ) -> Result<Vec<(PathBuf, RPMFileOptions)>, ConfigError> {
+        self.generate_expanded_path(build_target, parent, idx)
+            .map(|p| {
+                p.iter()
+                    .map(|(src, dst)| (src.clone(), self.generate_rpm_file_options(dst)))
+                    .collect::<Vec<_>>()
+            })
+    }
 }
 
-fn _get_base_from_glob(glob: &'_ str) -> PathBuf {
+fn get_base_from_glob(glob: &'_ str) -> PathBuf {
     let base = match glob.split_once('*') {
         Some((before, _)) => before,
         None => glob,
@@ -192,6 +188,44 @@ fn _get_base_from_glob(glob: &'_ str) -> PathBuf {
     out_path.into()
 }
 
+fn expand_glob(
+    source: &str,
+    dest: &str,
+    idx: usize,
+) -> Result<Vec<(PathBuf, String)>, ConfigError> {
+    let mut vec = Vec::new();
+    if source.contains('*') {
+        let base = get_base_from_glob(&source);
+        for path in glob(&source).map_err(|e| ConfigError::AssetGlobInvalid(idx, e.msg))? {
+            let file = path.map_err(|_| ConfigError::AssetReadFailed(idx))?;
+            if file.is_dir() {
+                continue;
+            }
+            let rel_path = file.strip_prefix(&base).map_err(|_| {
+                ConfigError::AssetGlobPathInvalid(
+                    idx,
+                    file.to_str().unwrap().to_owned(),
+                    base.to_str().unwrap().to_owned(),
+                )
+            })?;
+            let dest_path = Path::new(&dest).join(rel_path);
+            let dst = dest_path.to_str().unwrap().to_owned();
+
+            vec.push((file, dst));
+        }
+    } else if Path::new(source).exists() {
+        let file = PathBuf::from(source);
+        let dst = match file.file_name().map(|v| v.to_str()) {
+            Some(Some(filename)) if dest.ends_with('/') => dest.to_string() + filename,
+            _ => dest.to_string(),
+        };
+
+        vec.push((file, dst));
+    }
+
+    Ok(vec)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -200,17 +234,31 @@ mod test {
 
     #[test]
     fn test_get_base_from_glob() {
+        let toml_dir = "../".to_string()
+            + std::env::current_dir()
+                .unwrap()
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap();
+        let toml_ptn = toml_dir.to_string() + "/*.toml";
+
         let tests = &[
             ("*", PathBuf::from("")),
             ("src/auto_req/*.rs", PathBuf::from("src/auto_req")),
             ("src/not_a_directory/*.rs", PathBuf::from("src")),
             ("*.things", PathBuf::from("")),
+            (toml_ptn.as_str(), PathBuf::from(toml_dir)),
             ("src/auto_req", PathBuf::from("src/auto_req")), // shouldn't currently happen as we detect '*' in the string, but test the code path anyway
         ];
 
         for test in tests {
-            let out = _get_base_from_glob(test.0);
-            assert_eq!(out, test.1);
+            let out = get_base_from_glob(test.0);
+            assert_eq!(
+                out, test.1,
+                "get_base_from_glob({0:?}) shall equal to {1:?}",
+                test.0, test.1
+            );
         }
     }
 
@@ -237,7 +285,7 @@ mod test {
                     group: None,
                     mode: Some(0o0100755),
                     config: false,
-                    doc: false
+                    doc: false,
                 },
                 FileInfo {
                     source: "LICENSE".into(),
@@ -246,7 +294,7 @@ mod test {
                     group: None,
                     mode: Some(0o0100644),
                     config: false,
-                    doc: true
+                    doc: true,
                 },
                 FileInfo {
                     source: "README.md".into(),
@@ -255,8 +303,8 @@ mod test {
                     group: None,
                     mode: Some(0o0100644),
                     config: false,
-                    doc: true
-                }
+                    doc: true,
+                },
             ]
         );
     }
@@ -274,9 +322,15 @@ mod test {
             config: false,
             doc: true,
         };
+        let expanded = file_info
+            .generate_expanded_path(&target, &tempdir, 0)
+            .unwrap();
         assert_eq!(
-            file_info.generate_rpm_file_path(&target, &tempdir).unwrap(),
-            PathBuf::from("README.md")
+            expanded
+                .iter()
+                .map(|(src, dst)| { (src.as_path().to_str(), dst) })
+                .collect::<Vec<_>>(),
+            vec![(Some(file_info.source), &file_info.dest.to_string())]
         );
 
         let file_info = FileInfo {
@@ -288,10 +342,10 @@ mod test {
             config: false,
             doc: true,
         };
-        assert!(matches!(
-        file_info.generate_rpm_file_path(&target, &tempdir),
-        Err(ConfigError::AssetFileNotFound(v)) if v == PathBuf::from( "not-exist-file")
-        ));
+        assert!(
+            matches!(file_info.generate_expanded_path(&target, &tempdir, 0),
+                   Err(ConfigError::AssetFileNotFound(v)) if v == PathBuf::from( "not-exist-file"))
+        );
 
         std::fs::create_dir_all(tempdir.path().join("target/release")).unwrap();
         File::create(tempdir.path().join("target/release/foobar")).unwrap();
@@ -304,9 +358,24 @@ mod test {
             config: false,
             doc: false,
         };
+        let expanded = file_info
+            .generate_expanded_path(&target, &tempdir, 0)
+            .unwrap();
         assert_eq!(
-            file_info.generate_rpm_file_path(&target, &tempdir).unwrap(),
-            tempdir.path().join("target/release/foobar")
+            expanded
+                .iter()
+                .map(|(src, dst)| { (src.as_path().to_str(), dst) })
+                .collect::<Vec<_>>(),
+            vec![(
+                Some(
+                    tempdir
+                        .path()
+                        .join("target/release/foobar")
+                        .to_str()
+                        .unwrap()
+                ),
+                &file_info.dest.to_string()
+            )]
         );
 
         let target = BuildTarget {
@@ -322,9 +391,24 @@ mod test {
             target: None,
             ..Default::default()
         };
+        let expanded = file_info
+            .generate_expanded_path(&target, &tempdir, 0)
+            .unwrap();
         assert_eq!(
-            file_info.generate_rpm_file_path(&target, ".").unwrap(),
-            tempdir.path().join("target/release/foobar")
+            expanded
+                .iter()
+                .map(|(src, dst)| { (src.as_path().to_str(), dst) })
+                .collect::<Vec<_>>(),
+            vec![(
+                Some(
+                    tempdir
+                        .path()
+                        .join("target/release/foobar")
+                        .to_str()
+                        .unwrap()
+                ),
+                &file_info.dest.to_string()
+            )]
         );
 
         std::fs::create_dir_all(tempdir.path().join("target/foobarbaz/release")).unwrap();
@@ -351,9 +435,66 @@ mod test {
             target: Some("foobarbaz".to_string()),
             ..Default::default()
         };
+        let expanded = file_info
+            .generate_expanded_path(&target, &tempdir, 0)
+            .unwrap();
         assert_eq!(
-            file_info.generate_rpm_file_path(&target, ".").unwrap(),
-            tempdir.path().join("target/foobarbaz/release/foobarbaz")
+            expanded
+                .iter()
+                .map(|(src, dst)| { (src.as_path().to_str(), dst) })
+                .collect::<Vec<_>>(),
+            vec![(
+                Some(
+                    tempdir
+                        .path()
+                        .join("target/foobarbaz/release/foobarbaz")
+                        .to_str()
+                        .unwrap()
+                ),
+                &file_info.dest.to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn test_expand_glob() {
+        assert_eq!(
+            expand_glob("*.md", "/usr/share/doc/cargo-generate-rpm/", 0).unwrap(),
+            vec![(
+                PathBuf::from("README.md"),
+                "/usr/share/doc/cargo-generate-rpm/README.md".into()
+            )]
+        );
+
+        assert_eq!(
+            expand_glob("*-not-exist-glob", "/usr/share/doc/cargo-generate-rpm/", 0).unwrap(),
+            vec![]
+        );
+
+        assert_eq!(
+            expand_glob(
+                "README.md",
+                "/usr/share/doc/cargo-generate-rpm/README.md",
+                2
+            )
+            .unwrap(),
+            vec![(
+                PathBuf::from("README.md"),
+                "/usr/share/doc/cargo-generate-rpm/README.md".into()
+            )]
+        );
+
+        assert_eq!(
+            expand_glob(
+                "README.md",
+                "/usr/share/doc/cargo-generate-rpm/", // specifying directory
+                0
+            )
+                .unwrap(),
+            vec![(
+                PathBuf::from("README.md"),
+                "/usr/share/doc/cargo-generate-rpm/README.md".into()
+            )]
         );
     }
 }
