@@ -195,6 +195,20 @@ impl Config {
             builder = builder.post_uninstall_script(post_uninstall_script);
         }
 
+        if let Some(repository) = match (metadata.get_str("repository")?, pkg.repository.as_ref()) {
+            (Some(v), _) => Some(v),
+            (None, None) => None,
+            (None, Some(v)) => Some(v.get()?.as_str()),
+        } {
+            // RPM uses the variable name `url` for the repository field.
+            // When querying the RPM with `rpm -qi`, the repository field is displayed `URL`
+            builder = builder.url(repository);
+        }
+
+        if let Some(vendor) = metadata.get_str("vendor")? {
+            builder = builder.vendor(vendor);
+        }
+
         if metadata.get_bool("require-sh")?.unwrap_or(true) {
             builder = builder.requires(Dependency::any("/bin/sh".to_string()));
         }
