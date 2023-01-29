@@ -20,7 +20,7 @@ toml = "0.5"
 cargo_toml = "0.14"
 getopts = "0.2"
 thiserror = "1"
-elf = "0.0.10"
+elf = "0.7"
 
 [dev-dependencies]
 tempfile = "3"
