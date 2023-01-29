@@ -195,14 +195,17 @@ impl Config {
             builder = builder.post_uninstall_script(post_uninstall_script);
         }
 
-        if let Some(repository) = match (metadata.get_str("repository")?, pkg.repository.as_ref()) {
-            (Some(v), _) => Some(v),
-            (None, None) => None,
-            (None, Some(v)) => Some(v.get()?.as_str()),
+        if let Some(url) = match (
+            metadata.get_str("url")?,
+            pkg.homepage.as_ref(),
+            pkg.repository.as_ref(),
+        ) {
+            (Some(v), _, _) => Some(v),
+            (None, Some(v), _) => Some(v.get()?.as_str()),
+            (None, None, Some(v)) => Some(v.get()?.as_str()),
+            (None, None, None) => None,
         } {
-            // RPM uses the variable name `url` for the repository field.
-            // When querying the RPM with `rpm -qi`, the repository field is displayed `URL`
-            builder = builder.url(repository);
+            builder = builder.url(url);
         }
 
         if let Some(vendor) = metadata.get_str("vendor")? {
