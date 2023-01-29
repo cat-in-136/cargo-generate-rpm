@@ -1,26 +1,32 @@
 use crate::error::AutoReqError;
-use elf::types::{Class, Machine, ELFCLASS64, EM_FAKE_ALPHA, SHT_GNU_HASH, SHT_HASH};
-use elf::ParseError;
+use elf::abi::{EM_ALPHA, SHT_GNU_HASH, SHT_HASH};
+use elf::endian::AnyEndian;
+use elf::file::{Class, FileHeader};
+use elf::{ElfStream, ParseError};
 use std::collections::BTreeSet;
 use std::ffi::OsString;
+use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
 #[derive(Debug)]
 struct ElfInfo {
-    machine: (Class, Machine),
+    machine: (Class, u16),
     got_hash: bool,
     got_gnu_hash: bool,
 }
 
 impl ElfInfo {
     fn new<P: AsRef<Path>>(path: P) -> Result<Self, ParseError> {
-        let file = elf::File::open_path(path)?;
+        let file = File::open(path)?;
+        let elf_stream = ElfStream::open_stream(file)?;
+        let ehdr: FileHeader<AnyEndian> = elf_stream.ehdr;
+        let shdrs = elf_stream.section_headers();
 
-        let machine = (file.ehdr.class, file.ehdr.machine);
-        let got_hash = file.sections.iter().any(|s| s.shdr.shtype == SHT_HASH);
-        let got_gnu_hash = file.sections.iter().any(|s| s.shdr.shtype == SHT_GNU_HASH);
+        let machine = (ehdr.class, ehdr.e_machine);
+        let got_hash = shdrs.iter().any(|s| s.sh_type == SHT_HASH);
+        let got_gnu_hash = shdrs.iter().any(|s| s.sh_type == SHT_GNU_HASH);
 
         Ok(Self {
             machine,
@@ -30,14 +36,10 @@ impl ElfInfo {
     }
 
     pub fn marker(&self) -> Option<&'static str> {
-        let (class, machine) = self.machine;
-        if class == ELFCLASS64 {
-            match machine {
-                Machine(0x9026) | EM_FAKE_ALPHA => None, // alpha doesn't traditionally have 64bit markers
-                _ => Some("(64bit)"),
-            }
-        } else {
-            None
+        match self.machine {
+            (Class::ELF64, EM_ALPHA) | (Class::ELF64, 0x9026) => None, // alpha doesn't traditionally have 64bit markers
+            (Class::ELF64, _) => Some("(64bit)"),
+            (Class::ELF32, _) => None,
         }
     }
 }
@@ -132,7 +134,7 @@ fn test_find_requires_of_elf() {
 
 fn find_require_of_shebang(path: &Path) -> Result<Option<String>, AutoReqError> {
     let interpreter = {
-        let file = std::fs::File::open(path)?;
+        let file = File::open(path)?;
         let mut read = BufReader::new(file);
         let mut shebang = [0u8; 2];
         let shebang_size = read.read(&mut shebang)?;
