@@ -41,7 +41,8 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
 * version: the package version. If not present, `package.version` is used.
 * license: the package license. If not present, `package.license` is used.
 * summary: the package summary/description. If not present, `package.description` is used.
-* repository: the package repository url. If not present, `package.repository` is used.
+* url: the package homepage url. If not present, `package.homepage` is used. If neither present, `package.repository` is
+  used.
 * assets: (**mandatory**) the array of the files to be included in the package
     * source: the location of that asset in the Rust project. (e.g. `target/release/XXX`)
       Wildcard character `*` is allowed.
