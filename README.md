@@ -114,7 +114,7 @@ the user who executes this command may specify command line option `--auto-req n
 * `--auto-req auto`: The following rules are used to determine the preferred automatic dependency process:
     * If `package.metadata.generate-rpm.auto-req` set to `"no"` or `"disabled"`, the process is disabled.
     * If `/usr/lib/rpm/find-requires` exists, it is used (same behaviour as `--auto-req /usr/lib/rpm/find-requires`).
-    * Otherwise, builtin procedure is used (same behaviour as `--auto-req buitin`).
+    * Otherwise, builtin procedure is used (same behaviour as `--auto-req builtin`).
 * `--auto-req builtin`: the builtin procedure using `ldd` is used.
 * `--auto-req /path/to/find-requires`: the specified external program is used. This behavior is the same as the
   original `rpmbuild`.
