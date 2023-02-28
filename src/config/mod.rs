@@ -333,7 +333,9 @@ documentation.workspace = true
     #[test]
     fn test_table_to_dependencies() {
         fn dependency_to_u8_slice(dep: &Dependency) -> &[u8] {
-            unsafe { std::mem::transmute_copy(dep) }
+            let dep: *const Dependency = dep;
+            let dep: *const u8 = dep as *const u8;
+            unsafe { std::slice::from_raw_parts(dep, std::mem::size_of::<&Dependency>()) }
         }
 
         let mut table = Table::new();
