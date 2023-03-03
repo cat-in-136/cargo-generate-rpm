@@ -148,7 +148,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
     );
 
     opts.optflag("h", "help", "print this help menu");
-    opts.optflag("v", "version", "print version information");
+    opts.optflag("V", "version", "print version information");
 
     let opt_matches = opts.parse(env::args().skip(1)).unwrap_or_else(|err| {
         eprintln!("{}: {}", program, err);
@@ -158,7 +158,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         println!("{}", opts.usage(&*format!("Usage: {} [options]", program)));
         std::process::exit(0);
     }
-    if opt_matches.opt_present("v") {
+    if opt_matches.opt_present("V") {
         println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
         std::process::exit(0);
     }
