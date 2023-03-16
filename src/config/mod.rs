@@ -154,10 +154,15 @@ impl Config {
             (None, Some(v)) => v.get()?,
         };
         let arch = rpm_builder_config.build_target.binary_arch();
-        let desc = match (metadata.get_str("description")?, pkg.description.as_ref()) {
-            (Some(v), _) => v,
-            (None, None) => Err(ConfigError::Missing("package.description".to_string()))?,
-            (None, Some(v)) => v.get()?,
+        let desc = match (
+            metadata.get_str("summary")?,
+            metadata.get_str("description")?,
+            pkg.description.as_ref(),
+        ) {
+            (Some(v), _, _) => v,
+            (None, Some(v), _) => v,
+            (None, None, Some(v)) => v.get()?,
+            (None, None, None) => Err(ConfigError::Missing("package.description".to_string()))?,
         };
         let assets = metadata
             .get_array("assets")?
