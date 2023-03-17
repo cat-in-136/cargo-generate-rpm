@@ -350,7 +350,7 @@ mod test {
             array = [ 1, 2 ]
         };
         let metadata_config = MetadataConfig {
-            metadata: metadata.as_table().unwrap(),
+            metadata: &metadata,
             branch_path: None,
         };
 
@@ -385,7 +385,7 @@ mod test {
         ));
 
         let metadata_config = MetadataConfig {
-            metadata: metadata.as_table().unwrap(),
+            metadata: &metadata,
             branch_path: Some("branch".to_string()),
         };
         assert!(matches!(
@@ -413,7 +413,7 @@ mod test {
         let metadata_config = metadata
             .iter()
             .map(|v| MetadataConfig {
-                metadata: v.as_table().unwrap(),
+                metadata: &v,
                 branch_path: None,
             })
             .collect::<Vec<_>>();
