@@ -172,7 +172,7 @@ Because all packages in the workspace share a common output directory that is lo
 
 ### Cross compilation
 
-This command supports `--target-dir` and `--target` option like `cargo build`.
+This command supports `--target-dir`, `--target`, and `--profile` options like `cargo build`.
 Depending on these options, this command changes the RPM package file location and replaces `target/release/` of
 the source locations of the assets.
 
@@ -188,6 +188,9 @@ In this case, the source of the asset `{ source = "target/release/XXX", dest = "
 
 You can use `CARGO_BUILD_TARGET` environment variable instead of `--target` option and `CARGO_BUILD_TARGET_DIR` or
 `CARGO_TARGET_DIR` instead of `--target-dir`.
+
+Similarly, if using a custom build profile with, for example, `--profile custom` the source of the asset
+`{ source = "target/release/XXX" }` will be treated as `target/custom/XXX`.
 
 ### Payload compress type
 

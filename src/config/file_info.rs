@@ -108,12 +108,14 @@ impl FileInfo<'_, '_, '_, '_> {
         parent: P,
         idx: usize,
     ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
+        let profile = build_target.profile.as_deref().unwrap_or("release");
         let source = self
             .source
             .strip_prefix("target/release/")
+            .or_else(|| self.source.strip_prefix(&format!("target/{profile}/")))
             .and_then(|rel_path| {
                 build_target
-                    .target_path("release")
+                    .target_path(profile)
                     .join(rel_path)
                     .to_str()
                     .map(|v| v.to_string())
@@ -411,11 +413,16 @@ mod test {
             )]
         );
 
-        std::fs::create_dir_all(tempdir.path().join("target/foobarbaz/release")).unwrap();
-        File::create(tempdir.path().join("target/foobarbaz/release/foobarbaz")).unwrap();
+        std::fs::create_dir_all(tempdir.path().join("target/target-triple/my-profile")).unwrap();
+        File::create(
+            tempdir
+                .path()
+                .join("target/target-triple/my-profile/my-bin"),
+        )
+        .unwrap();
         let file_info = FileInfo {
-            source: "target/release/foobarbaz".into(),
-            dest: "/usr/bin/foobarbaz".into(),
+            source: "target/release/my-bin".into(),
+            dest: "/usr/bin/my-bin".into(),
             user: None,
             group: None,
             mode: None,
@@ -432,7 +439,8 @@ mod test {
                     .unwrap()
                     .to_string(),
             ),
-            target: Some("foobarbaz".to_string()),
+            target: Some("target-triple".to_string()),
+            profile: Some("my-profile".to_string()),
             ..Default::default()
         };
         let expanded = file_info
@@ -447,7 +455,7 @@ mod test {
                 Some(
                     tempdir
                         .path()
-                        .join("target/foobarbaz/release/foobarbaz")
+                        .join("target/target-triple/my-profile/my-bin")
                         .to_str()
                         .unwrap()
                 ),
@@ -490,7 +498,7 @@ mod test {
                 "/usr/share/doc/cargo-generate-rpm/", // specifying directory
                 0
             )
-                .unwrap(),
+            .unwrap(),
             vec![(
                 PathBuf::from("README.md"),
                 "/usr/share/doc/cargo-generate-rpm/README.md".into()
