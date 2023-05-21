@@ -130,7 +130,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         "",
         "payload-compress",
         "Compression type of package payloads. \
-        none, gzip or zstd(Default).",
+        none, gzip, zstd(Default) or xz.",
         "TYPE",
     );
     opts.optmulti(
