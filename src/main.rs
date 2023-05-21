@@ -122,6 +122,12 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
     );
     opts.optopt(
         "",
+        "profile",
+        "Select which build profile to package. Defaults to \"release\".",
+        "PROFILE",
+    );
+    opts.optopt(
+        "",
         "payload-compress",
         "Compression type of package payloads. \
         none, gzip or zstd(Default).",
@@ -178,6 +184,9 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
     }
     if let Some(target_dir) = opt_matches.opt_str("target-dir") {
         build_target.target_dir = Some(target_dir);
+    }
+    if let Some(profile) = opt_matches.opt_str("profile") {
+        build_target.profile = Some(profile);
     }
     let payload_compress = opt_matches
         .opt_str("payload-compress")

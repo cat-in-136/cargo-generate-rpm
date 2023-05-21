@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 pub struct BuildTarget {
     pub target_dir: Option<String>,
     pub target: Option<String>,
+    pub profile: Option<String>,
     pub arch: Option<String>,
 }
 
