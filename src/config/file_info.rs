@@ -134,7 +134,7 @@ impl FileInfo<'_, '_, '_, '_> {
             }
         }
 
-        Err(ConfigError::AssetFileNotFound(PathBuf::from(&self.source)))
+        Err(ConfigError::AssetFileNotFound(PathBuf::from(source)))
     }
 
     fn generate_rpm_file_options<T: ToString>(&self, dest: T) -> RPMFileOptions {
