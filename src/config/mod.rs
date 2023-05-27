@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
-use rpm::{CompressionType, Dependency, RPMBuilder};
+use rpm::{Compressor, Dependency, RPMBuilder};
 use toml::value::Table;
 
 use crate::auto_req::{find_requires, AutoReqMode};
@@ -171,7 +171,7 @@ impl Config {
         let parent = self.manifest_path.parent().unwrap();
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
-            .compression(CompressionType::from_str(rpm_builder_config.payload_compress)?);
+            .compression(Compressor::from_str(rpm_builder_config.payload_compress)?);
         let mut expanded_file_paths = vec![];
         for (idx, file) in files.iter().enumerate() {
             let entries =
