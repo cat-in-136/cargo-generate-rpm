@@ -172,10 +172,12 @@ impl Config {
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(Compressor::from_str(rpm_builder_config.payload_compress)?);
+        let mut expanded_file_paths = vec![];
         for (idx, file) in files.iter().enumerate() {
             let entries =
                 file.generate_rpm_file_entry(rpm_builder_config.build_target, parent, idx)?;
             for (file_source, options) in entries {
+                expanded_file_paths.push(file_source.clone());
                 builder = builder.with_file(file_source, options)?;
             }
         }
@@ -233,7 +235,7 @@ impl Config {
         } else {
             rpm_builder_config.auto_req_mode
         };
-        for requires in find_requires(files.iter().map(|v| Path::new(&v.source)), auto_req)? {
+        for requires in find_requires(expanded_file_paths, auto_req)? {
             builder = builder.requires(Dependency::any(requires));
         }
         if let Some(obsoletes) = metadata.get_table("obsoletes")? {
