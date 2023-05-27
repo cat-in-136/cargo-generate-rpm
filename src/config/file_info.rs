@@ -108,7 +108,11 @@ impl FileInfo<'_, '_, '_, '_> {
         parent: P,
         idx: usize,
     ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
-        let profile = build_target.profile.as_deref().unwrap_or("release");
+        let profile = match build_target.profile.as_deref() {
+            Some(v) if v == "dev" => "debug",
+            Some(v) => v,
+            None => "release",
+        };
         let source = self
             .source
             .strip_prefix("target/release/")
