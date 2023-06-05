@@ -45,8 +45,6 @@ pub enum ConfigError {
 
 #[derive(thiserror::Error, Debug)]
 pub enum AutoReqError {
-    #[error("Wrong auto-req mode")]
-    WrongMode,
     #[error("Failed to execute `{}`: {1}", .0.clone().into_string().unwrap_or_default())]
     ProcessError(OsString, #[source] IoError),
     #[error(transparent)]
@@ -71,6 +69,8 @@ pub enum Error {
     CargoToml(#[from] CargoTomlError),
     #[error(transparent)]
     Config(#[from] ConfigError),
+    #[error("Invalid value of enviroment variable {0}: {1}")]
+    EnvError(&'static str, String),
     #[error(transparent)]
     ParseTomlFile(#[from] FileAnnotatedError<TomlDeError>),
     #[error(transparent)]

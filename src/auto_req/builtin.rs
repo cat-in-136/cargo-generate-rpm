@@ -77,17 +77,17 @@ fn find_requires_by_ldd(
         .map_err(|e| AutoReqError::ProcessError(OsString::from("ldd"), e))?;
 
     let unversioned_libraries = s
-        .split("\n")
+        .split('\n')
         .take_while(|&line| !line.trim().is_empty())
-        .filter_map(|line| line.trim_start().splitn(2, " ").nth(0));
+        .filter_map(|line| line.trim_start().split(' ').next());
     let versioned_libraries = s
-        .split("\n")
+        .split('\n')
         .skip_while(|&line| !line.contains("Version information:"))
         .skip(1)
         .skip_while(|&line| !line.contains(path.to_str().unwrap()))
         .skip(1)
         .take_while(|&line| line.contains(" => "))
-        .filter_map(|line| line.trim_start().splitn(2, " => ").nth(0));
+        .filter_map(|line| line.trim_start().split(" => ").next());
 
     let marker = marker.unwrap_or_default();
     let mut requires = BTreeSet::new();
@@ -98,22 +98,18 @@ fn find_requires_by_ldd(
     {
         if name.contains(" (") {
             // Insert "unversioned" library name
-            requires.insert(format!(
-                "{}(){}",
-                name.splitn(2, " ").nth(0).unwrap(),
-                marker
-            ));
-            requires.insert(format!("{}{}", name.replace(" ", ""), marker));
+            requires.insert(format!("{}(){}", name.split(' ').next().unwrap(), marker));
+            requires.insert(format!("{}{}", name.replace(' ', ""), marker));
         } else {
-            requires.insert(format!("{}(){}", name.replace(" ", ""), marker));
+            requires.insert(format!("{}(){}", name.replace(' ', ""), marker));
         }
     }
     Ok(requires)
 }
 
 fn find_requires_of_elf(path: &Path) -> Result<Option<BTreeSet<String>>, AutoReqError> {
-    if let Ok(info) = ElfInfo::new(&path) {
-        let mut requires = find_requires_by_ldd(&path, info.marker())?;
+    if let Ok(info) = ElfInfo::new(path) {
+        let mut requires = find_requires_by_ldd(path, info.marker())?;
         if info.got_gnu_hash && !info.got_hash {
             requires.insert("rtld(GNU_HASH)".to_string());
         }
@@ -142,16 +138,16 @@ fn find_require_of_shebang(path: &Path) -> Result<Option<String>, AutoReqError> 
             let mut line = String::new();
             read.read_line(&mut line)?;
             line.trim()
-                .splitn(2, |c: char| !c.is_ascii() || c.is_whitespace())
-                .nth(0)
-                .map(&String::from)
+                .split(|c: char| !c.is_ascii() || c.is_whitespace())
+                .next()
+                .map(String::from)
         } else {
             None
         }
     };
 
     Ok(match interpreter {
-        Some(i) if Path::new(&i).exists() => Some(i.to_string()),
+        Some(i) if Path::new(&i).exists() => Some(i),
         _ => None,
     })
 }
@@ -172,8 +168,8 @@ fn test_find_require_of_shebang() {
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
     std::fs::metadata(path)
-        .and_then(|metadata| Ok(metadata.mode()))
-        .and_then(|mode| Ok(mode & 0o111 != 0))
+        .map(|metadata| metadata.mode())
+        .map(|mode| mode & 0o111 != 0)
         .unwrap_or_default()
 }
 
