@@ -3,17 +3,50 @@ use std::str::FromStr;
 
 use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
-use rpm::{Compressor, Dependency, RPMBuilder};
+use rpm::{CompressionType, Dependency, RPMBuilder};
 use toml::value::Table;
 
 use crate::auto_req::{find_requires, AutoReqMode};
 use crate::build_target::BuildTarget;
-use crate::error::{ConfigError, Error};
+use crate::error::{ConfigError, Error, PayloadCompressError};
 use file_info::FileInfo;
 use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueHelper};
 
 mod file_info;
 mod metadata;
+
+#[derive(Debug, Clone, Default)]
+pub enum PayloadCompressType {
+    None,
+    Gzip,
+    #[default]
+    Zstd,
+    Xz,
+}
+
+impl FromStr for PayloadCompressType {
+    type Err = PayloadCompressError;
+    fn from_str(raw: &str) -> Result<Self, Self::Err> {
+        match raw {
+            "none" => Ok(PayloadCompressType::None),
+            "gzip" => Ok(PayloadCompressType::Gzip),
+            "zstd" => Ok(PayloadCompressType::Zstd),
+            "xz" => Ok(PayloadCompressType::Xz),
+            _ => Err(PayloadCompressError::UnsupportedType(raw.to_string())),
+        }
+    }
+}
+
+impl From<PayloadCompressType> for CompressionType {
+    fn from(value: PayloadCompressType) -> Self {
+        match value {
+            PayloadCompressType::None => Self::None,
+            PayloadCompressType::Gzip => Self::Gzip,
+            PayloadCompressType::Zstd => Self::Zstd,
+            PayloadCompressType::Xz => Self::Xz,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum ExtraMetadataSource {
@@ -22,18 +55,18 @@ pub enum ExtraMetadataSource {
 }
 
 #[derive(Debug)]
-pub struct RpmBuilderConfig<'a, 'b> {
+pub struct RpmBuilderConfig<'a> {
     build_target: &'a BuildTarget,
     auto_req_mode: AutoReqMode,
-    payload_compress: &'b str,
+    payload_compress: PayloadCompressType,
 }
 
-impl<'a, 'b> RpmBuilderConfig<'a, 'b> {
+impl<'a> RpmBuilderConfig<'a> {
     pub fn new(
         build_target: &'a BuildTarget,
         auto_req_mode: AutoReqMode,
-        payload_compress: &'b str,
-    ) -> RpmBuilderConfig<'a, 'b> {
+        payload_compress: PayloadCompressType,
+    ) -> RpmBuilderConfig<'a> {
         RpmBuilderConfig {
             build_target,
             auto_req_mode,
@@ -171,7 +204,7 @@ impl Config {
         let parent = self.manifest_path.parent().unwrap();
 
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
-            .compression(Compressor::from_str(rpm_builder_config.payload_compress)?);
+            .compression(CompressionType::from(rpm_builder_config.payload_compress));
         let mut expanded_file_paths = vec![];
         for (idx, file) in files.iter().enumerate() {
             let entries =
@@ -391,7 +424,7 @@ documentation.workspace = true
         let builder = config.create_rpm_builder(RpmBuilderConfig::new(
             &BuildTarget::default(),
             AutoReqMode::Disabled,
-            "zstd",
+            PayloadCompressType::default(),
         ));
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {

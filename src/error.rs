@@ -44,6 +44,18 @@ pub enum ConfigError {
 }
 
 #[derive(thiserror::Error, Debug)]
+pub struct FileAnnotatedError<E: StdError + Display>(pub Option<PathBuf>, #[source] pub E);
+
+impl<E: StdError + Display> Display for FileAnnotatedError<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            None => Display::fmt(&self.1, f),
+            Some(path) => write!(f, "{}: {}", path.as_path().display(), self.1),
+        }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
 pub enum AutoReqError {
     #[error("Wrong auto-req mode")]
     WrongMode,
@@ -54,15 +66,9 @@ pub enum AutoReqError {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub struct FileAnnotatedError<E: StdError + Display>(pub Option<PathBuf>, #[source] pub E);
-
-impl<E: StdError + Display> Display for FileAnnotatedError<E> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.0 {
-            None => Display::fmt(&self.1, f),
-            Some(path) => write!(f, "{}: {}", path.as_path().display(), self.1),
-        }
-    }
+pub enum PayloadCompressError {
+    #[error("Unsupported payload compress type: {0}")]
+    UnsupportedType(String),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -79,6 +85,8 @@ pub enum Error {
     AutoReq(#[from] AutoReqError),
     #[error(transparent)]
     Rpm(#[from] RPMError),
+    #[error(transparent)]
+    PayloadCompress(#[from] PayloadCompressError),
     #[error("{1}: {0}")]
     FileIo(PathBuf, #[source] IoError),
     #[error(transparent)]

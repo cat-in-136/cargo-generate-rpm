@@ -2,7 +2,7 @@ extern crate core;
 
 use crate::auto_req::AutoReqMode;
 use crate::build_target::BuildTarget;
-use crate::config::{Config, ExtraMetadataSource, RpmBuilderConfig};
+use crate::config::{Config, ExtraMetadataSource, PayloadCompressType, RpmBuilderConfig};
 use crate::error::Error;
 use getopts::Options;
 use std::convert::TryFrom;
@@ -18,7 +18,7 @@ mod error;
 #[derive(Debug)]
 struct CliSetting {
     auto_req_mode: AutoReqMode,
-    payload_compress: String,
+    payload_compress: PayloadCompressType,
     extra_metadata: Vec<ExtraMetadataSource>,
 }
 
@@ -42,7 +42,7 @@ fn process(
         .create_rpm_builder(RpmBuilderConfig::new(
             build_target,
             setting.auto_req_mode,
-            setting.payload_compress.as_str(),
+            setting.payload_compress,
         ))?
         .build()?;
 
@@ -130,7 +130,7 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
         "",
         "payload-compress",
         "Compression type of package payloads. \
-        none, gzip or zstd(Default).",
+        none, gzip, zstd(Default) or xz.",
         "TYPE",
     );
     opts.optmulti(
@@ -190,7 +190,8 @@ fn parse_arg() -> Result<(BuildTarget, Option<PathBuf>, Option<String>, CliSetti
     }
     let payload_compress = opt_matches
         .opt_str("payload-compress")
-        .unwrap_or("zstd".to_string());
+        .map(|v| v.parse::<PayloadCompressType>())
+        .unwrap_or(Ok(PayloadCompressType::default()))?;
     let metadata_overwrite = opt_matches.opt_strs_pos("metadata-overwrite");
     let set_metadata = opt_matches.opt_strs_pos("set-metadata");
     let variant = opt_matches.opt_strs_pos("variant");
