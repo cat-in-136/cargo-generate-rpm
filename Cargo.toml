@@ -15,7 +15,7 @@ edition = "2018"
 
 [dependencies]
 glob = "0.3.0"
-rpm = "0.11.0"
+rpm = { version = "0.11.0", default-features = false }
 toml = "0.7"
 cargo_toml = "0.15"
 getopts = "0.2"
