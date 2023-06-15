@@ -159,12 +159,12 @@ impl Config {
         let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(cfg.args.payload_compress);
         builder = if let Some(t) = cfg.args.source_date_epoch {
-            builder.source_date_epoch(t)
+            builder.source_date(t)
         } else if let Ok(t) = std::env::var("SOURCE_DATE_EPOCH") {
             let t = t
                 .parse::<u32>()
                 .map_err(|err| Error::EnvError("SOURCE_DATE_EPOCH", err.to_string()))?;
-            builder.source_date_epoch(t)
+            builder.source_date(t)
         } else {
             builder
         };
