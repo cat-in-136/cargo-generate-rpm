@@ -44,14 +44,6 @@ pub enum ConfigError {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum AutoReqError {
-    #[error("Failed to execute `{}`: {1}", .0.clone().into_string().unwrap_or_default())]
-    ProcessError(OsString, #[source] IoError),
-    #[error(transparent)]
-    Io(#[from] IoError),
-}
-
-#[derive(thiserror::Error, Debug)]
 pub struct FileAnnotatedError<E: StdError + Display>(pub Option<PathBuf>, #[source] pub E);
 
 impl<E: StdError + Display> Display for FileAnnotatedError<E> {
@@ -61,6 +53,20 @@ impl<E: StdError + Display> Display for FileAnnotatedError<E> {
             Some(path) => write!(f, "{}: {}", path.as_path().display(), self.1),
         }
     }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AutoReqError {
+    #[error("Failed to execute `{}`: {1}", .0.clone().into_string().unwrap_or_default())]
+    ProcessError(OsString, #[source] IoError),
+    #[error(transparent)]
+    Io(#[from] IoError),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum PayloadCompressError {
+    #[error("Unsupported payload compress type: {0}")]
+    UnsupportedType(String),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -79,6 +85,8 @@ pub enum Error {
     AutoReq(#[from] AutoReqError),
     #[error(transparent)]
     Rpm(#[from] RPMError),
+    #[error(transparent)]
+    PayloadCompress(#[from] PayloadCompressError),
     #[error("{1}: {0}")]
     FileIo(PathBuf, #[source] IoError),
     #[error(transparent)]

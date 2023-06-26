@@ -15,6 +15,39 @@ use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueH
 mod file_info;
 mod metadata;
 
+#[derive(Debug, Clone, Default)]
+pub enum PayloadCompressType {
+    None,
+    Gzip,
+    #[default]
+    Zstd,
+    Xz,
+}
+
+impl FromStr for PayloadCompressType {
+    type Err = PayloadCompressError;
+    fn from_str(raw: &str) -> Result<Self, Self::Err> {
+        match raw {
+            "none" => Ok(PayloadCompressType::None),
+            "gzip" => Ok(PayloadCompressType::Gzip),
+            "zstd" => Ok(PayloadCompressType::Zstd),
+            "xz" => Ok(PayloadCompressType::Xz),
+            _ => Err(PayloadCompressError::UnsupportedType(raw.to_string())),
+        }
+    }
+}
+
+impl From<PayloadCompressType> for CompressionType {
+    fn from(value: PayloadCompressType) -> Self {
+        match value {
+            PayloadCompressType::None => Self::None,
+            PayloadCompressType::Gzip => Self::Gzip,
+            PayloadCompressType::Zstd => Self::Zstd,
+            PayloadCompressType::Xz => Self::Xz,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ExtraMetadataSource {
     File(PathBuf, Option<String>),
@@ -168,6 +201,7 @@ impl Config {
         } else {
             builder
         };
+
         let mut expanded_file_paths = vec![];
         for (idx, file) in files.iter().enumerate() {
             let entries = file.generate_rpm_file_entry(cfg.build_target, parent, idx)?;
