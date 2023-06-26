@@ -64,12 +64,6 @@ pub enum AutoReqError {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum PayloadCompressError {
-    #[error("Unsupported payload compress type: {0}")]
-    UnsupportedType(String),
-}
-
-#[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Cargo.toml: {0}")]
     CargoToml(#[from] CargoTomlError),
@@ -85,8 +79,6 @@ pub enum Error {
     AutoReq(#[from] AutoReqError),
     #[error(transparent)]
     Rpm(#[from] RPMError),
-    #[error(transparent)]
-    PayloadCompress(#[from] PayloadCompressError),
     #[error("{1}: {0}")]
     FileIo(PathBuf, #[source] IoError),
     #[error(transparent)]

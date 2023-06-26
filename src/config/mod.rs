@@ -15,39 +15,6 @@ use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueH
 mod file_info;
 mod metadata;
 
-#[derive(Debug, Clone, Default)]
-pub enum PayloadCompressType {
-    None,
-    Gzip,
-    #[default]
-    Zstd,
-    Xz,
-}
-
-impl FromStr for PayloadCompressType {
-    type Err = PayloadCompressError;
-    fn from_str(raw: &str) -> Result<Self, Self::Err> {
-        match raw {
-            "none" => Ok(PayloadCompressType::None),
-            "gzip" => Ok(PayloadCompressType::Gzip),
-            "zstd" => Ok(PayloadCompressType::Zstd),
-            "xz" => Ok(PayloadCompressType::Xz),
-            _ => Err(PayloadCompressError::UnsupportedType(raw.to_string())),
-        }
-    }
-}
-
-impl From<PayloadCompressType> for CompressionType {
-    fn from(value: PayloadCompressType) -> Self {
-        match value {
-            PayloadCompressType::None => Self::None,
-            PayloadCompressType::Gzip => Self::Gzip,
-            PayloadCompressType::Zstd => Self::Zstd,
-            PayloadCompressType::Xz => Self::Xz,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum ExtraMetadataSource {
     File(PathBuf, Option<String>),
@@ -425,7 +392,7 @@ documentation.workspace = true
         let builder = config.create_rpm_builder(cfg);
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
-            matches!(builder, Ok(_))
+            builder.is_ok()
         } else {
             matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path.to_str() == Some("target/release/cargo-generate-rpm"))
         });
