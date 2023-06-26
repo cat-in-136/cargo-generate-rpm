@@ -7,7 +7,7 @@ use toml::value::Table;
 
 use crate::auto_req::{find_requires, AutoReqMode};
 use crate::build_target::BuildTarget;
-use crate::cli::Args;
+use crate::cli::Cli;
 use crate::error::{ConfigError, Error};
 use file_info::FileInfo;
 use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueHelper};
@@ -24,11 +24,11 @@ pub enum ExtraMetadataSource {
 #[derive(Debug)]
 pub struct RpmBuilderConfig<'a> {
     build_target: &'a BuildTarget,
-    args: &'a Args,
+    args: &'a Cli,
 }
 
 impl<'a> RpmBuilderConfig<'a> {
-    pub fn new(build_target: &'a BuildTarget, args: &'a Args) -> RpmBuilderConfig<'a> {
+    pub fn new(build_target: &'a BuildTarget, args: &'a Cli) -> RpmBuilderConfig<'a> {
         RpmBuilderConfig { build_target, args }
     }
 }
@@ -384,7 +384,7 @@ documentation.workspace = true
     #[test]
     fn test_config_create_rpm_builder() {
         let config = Config::new(Path::new("."), None, &[]).unwrap();
-        let args = crate::cli::Args {
+        let args = crate::cli::Cli {
             ..Default::default()
         };
         let target = BuildTarget::new(&args);

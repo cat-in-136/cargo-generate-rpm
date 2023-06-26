@@ -314,7 +314,7 @@ mod test {
     #[test]
     fn test_generate_rpm_file_path() {
         let tempdir = tempfile::tempdir().unwrap();
-        let args = crate::cli::Args::default();
+        let args = crate::cli::Cli::default();
         let target = BuildTarget::new(&args);
         let file_info = FileInfo {
             source: "README.md",
@@ -381,7 +381,7 @@ mod test {
             )]
         );
 
-        let args = crate::cli::Args {
+        let args = crate::cli::Cli {
             target_dir: Some(
                 tempdir
                     .path()
@@ -430,7 +430,7 @@ mod test {
             config: false,
             doc: false,
         };
-        let args = crate::cli::Args {
+        let args = crate::cli::Cli {
             target_dir: Some(
                 tempdir
                     .path()

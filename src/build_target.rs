@@ -1,7 +1,7 @@
 use std::env::consts::ARCH;
 use std::path::{Path, PathBuf};
 
-use crate::cli::Args;
+use crate::cli::Cli;
 
 #[derive(Debug, Clone)]
 pub struct BuildTarget {
@@ -12,7 +12,7 @@ pub struct BuildTarget {
 }
 
 impl BuildTarget {
-    pub fn new(args: &Args) -> Self {
+    pub fn new(args: &Cli) -> Self {
         Self {
             target_dir: args.target_dir.clone(),
             target: args.target.clone(),
@@ -72,7 +72,7 @@ mod test {
 
     #[test]
     fn test_build_target_path() {
-        let args = crate::cli::Args::default();
+        let args = crate::cli::Cli::default();
         let target = BuildTarget::new(&args);
         assert_eq!(target.build_target_path(), PathBuf::from("target"));
 
@@ -88,7 +88,7 @@ mod test {
 
     #[test]
     fn test_target_path() {
-        let args = crate::cli::Args::default();
+        let args = crate::cli::Cli::default();
         let default_target = BuildTarget::new(&args);
         assert_eq!(
             default_target.target_path("release"),

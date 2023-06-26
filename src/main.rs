@@ -1,6 +1,6 @@
 use crate::{build_target::BuildTarget, config::RpmBuilderConfig};
 use clap::Parser;
-use cli::Commands;
+use cli::{CargoWrapper, Cli};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -15,7 +15,7 @@ mod error;
 use config::{Config, ExtraMetadataSource};
 use error::Error;
 
-fn collect_metadata(args: &cli::Args) -> Vec<config::ExtraMetadataSource> {
+fn collect_metadata(args: &Cli) -> Vec<config::ExtraMetadataSource> {
     args.metadata_overwrite
         .iter()
         .map(|v| {
@@ -42,7 +42,15 @@ fn collect_metadata(args: &cli::Args) -> Vec<config::ExtraMetadataSource> {
 }
 
 fn main() -> Result<(), Error> {
-    let Commands::GenerateRpm(args) = cli::Cli::parse().command;
+    let mut args = std::env::args();
+    let args = if let [Some("cargo"), Some("generate-rpm")] =
+        [args.next().as_deref(), args.next().as_deref()]
+    {
+        let CargoWrapper::GenerateRpm(args) = CargoWrapper::parse();
+        args
+    } else {
+        Cli::parse()
+    };
 
     let build_target = BuildTarget::new(&args);
     let extra_metadata = collect_metadata(&args);

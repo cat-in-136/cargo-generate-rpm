@@ -1,21 +1,20 @@
-use clap::{builder::PossibleValue, Parser, Subcommand, ValueEnum};
+use clap::{builder::PossibleValue, Parser, ValueEnum};
 use std::path::PathBuf;
+
+/// Wrapper used when the application is executed as Cargo plugin
+#[derive(Debug, Parser)]
+#[command(name = "cargo")]
+#[command(bin_name = "cargo")]
+pub enum CargoWrapper {
+    GenerateRpm(Cli),
+}
 
 /// Arguments of the command line interface
 #[derive(Debug, Parser)]
+#[command(name = "cargo-generate-rpm")]
+#[command(bin_name = "cargo-generate-rpm")]
+#[command(author, version, about, long_about = None)]
 pub struct Cli {
-    #[command(subcommand)]
-    pub command: Commands,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum Commands {
-    GenerateRpm(Args),
-}
-
-/// Arguments of the command line interface
-#[derive(Debug, clap::Args)]
-pub struct Args {
     /// Target arch of generated package.
     #[arg(short, long)]
     pub arch: Option<String>,
@@ -76,10 +75,9 @@ pub struct Args {
     pub variant: Vec<String>,
 }
 
-impl Default for Args {
+impl Default for Cli {
     fn default() -> Self {
-        let Commands::GenerateRpm(args) = Cli::parse_from(["generate-rpm"]).command;
-        args
+        Cli::parse_from([""])
     }
 }
 
