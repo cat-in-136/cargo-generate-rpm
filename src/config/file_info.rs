@@ -1,5 +1,4 @@
 use glob::glob;
-use rpm::RPMFileOptions;
 use toml::value::Table;
 
 use crate::build_target::BuildTarget;
@@ -137,8 +136,8 @@ impl FileInfo<'_, '_, '_, '_> {
         Err(ConfigError::AssetFileNotFound(PathBuf::from(source)))
     }
 
-    fn generate_rpm_file_options<T: ToString>(&self, dest: T) -> RPMFileOptions {
-        let mut rpm_file_option = RPMFileOptions::new(dest.to_string());
+    fn generate_rpm_file_options<T: ToString>(&self, dest: T) -> rpm::FileOptions {
+        let mut rpm_file_option = rpm::FileOptions::new(dest.to_string());
         if let Some(user) = self.user {
             rpm_file_option = rpm_file_option.user(user);
         }
@@ -162,7 +161,7 @@ impl FileInfo<'_, '_, '_, '_> {
         build_target: &BuildTarget,
         parent: P,
         idx: usize,
-    ) -> Result<Vec<(PathBuf, RPMFileOptions)>, ConfigError> {
+    ) -> Result<Vec<(PathBuf, rpm::FileOptions)>, ConfigError> {
         self.generate_expanded_path(build_target, parent, idx)
             .map(|p| {
                 p.iter()

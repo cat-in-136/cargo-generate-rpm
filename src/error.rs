@@ -1,5 +1,4 @@
 use cargo_toml::Error as CargoTomlError;
-use rpm::RPMError;
 use std::error::Error as StdError;
 use std::ffi::OsString;
 use std::fmt::{Debug, Display, Formatter};
@@ -78,7 +77,7 @@ pub enum Error {
     #[error(transparent)]
     AutoReq(#[from] AutoReqError),
     #[error(transparent)]
-    Rpm(#[from] RPMError),
+    Rpm(#[from] rpm::Error),
     #[error("{1}: {0}")]
     FileIo(PathBuf, #[source] IoError),
     #[error(transparent)]

@@ -13,7 +13,7 @@ edition = "2018"
 
 [dependencies]
 glob = "0.3.0"
-rpm = { git = "https://github.com/rpm-rs/rpm", rev = "9498e02", default-features = false }
+rpm = { git = "https://github.com/rpm-rs/rpm", default-features = false }
 toml = "0.7"
 cargo_toml = "0.15"
 clap = { version = "4.3", features = ["derive"] }

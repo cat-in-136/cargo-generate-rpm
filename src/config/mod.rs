@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
-use rpm::{Dependency, RPMBuilder};
+use rpm::Dependency;
 use toml::value::Table;
 
 use crate::auto_req::{find_requires, AutoReqMode};
@@ -22,14 +22,14 @@ pub enum ExtraMetadataSource {
 }
 
 #[derive(Debug)]
-pub struct RpmBuilderConfig<'a> {
+pub struct BuilderConfig<'a> {
     build_target: &'a BuildTarget,
     args: &'a Cli,
 }
 
-impl<'a> RpmBuilderConfig<'a> {
-    pub fn new(build_target: &'a BuildTarget, args: &'a Cli) -> RpmBuilderConfig<'a> {
-        RpmBuilderConfig { build_target, args }
+impl<'a> BuilderConfig<'a> {
+    pub fn new(build_target: &'a BuildTarget, args: &'a Cli) -> BuilderConfig<'a> {
+        BuilderConfig { build_target, args }
     }
 }
 
@@ -116,7 +116,7 @@ impl Config {
         Ok(dependencies)
     }
 
-    pub fn create_rpm_builder(&self, cfg: RpmBuilderConfig) -> Result<RPMBuilder, Error> {
+    pub fn create_rpm_builder(&self, cfg: BuilderConfig) -> Result<rpm::PackageBuilder, Error> {
         let mut metadata_config = Vec::new();
         metadata_config.push(MetadataConfig::new_from_manifest(&self.manifest)?);
         for v in &self.extra_metadata {
@@ -156,7 +156,7 @@ impl Config {
         let files = FileInfo::new(assets)?;
         let parent = self.manifest_path.parent().unwrap();
 
-        let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
+        let mut builder = rpm::PackageBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(cfg.args.payload_compress);
         builder = if let Some(t) = cfg.args.source_date_epoch {
             builder.source_date(t)
@@ -388,7 +388,7 @@ documentation.workspace = true
             ..Default::default()
         };
         let target = BuildTarget::new(&args);
-        let cfg = RpmBuilderConfig::new(&target, &args);
+        let cfg = BuilderConfig::new(&target, &args);
         let builder = config.create_rpm_builder(cfg);
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {

@@ -1,4 +1,4 @@
-use crate::{build_target::BuildTarget, config::RpmBuilderConfig};
+use crate::{build_target::BuildTarget, config::BuilderConfig};
 use clap::Parser;
 use cli::{CargoWrapper, Cli};
 use std::{
@@ -61,7 +61,7 @@ fn main() -> Result<(), Error> {
         Config::new(Path::new(""), None, &extra_metadata)?
     };
     let rpm_pkg = config
-        .create_rpm_builder(RpmBuilderConfig::new(&build_target, &args))?
+        .create_rpm_builder(BuilderConfig::new(&build_target, &args))?
         .build()?;
 
     let pkg_name = rpm_pkg.metadata.get_name()?;
