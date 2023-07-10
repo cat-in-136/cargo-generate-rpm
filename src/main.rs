@@ -43,9 +43,7 @@ fn collect_metadata(args: &Cli) -> Vec<config::ExtraMetadataSource> {
 
 fn main() -> Result<(), Error> {
     let mut args = std::env::args();
-    let args = if let [Some("cargo"), Some("generate-rpm")] =
-        [args.next().as_deref(), args.next().as_deref()]
-    {
+    let args = if let Some("generate-rpm") = args.nth(1).as_deref() {
         let CargoWrapper::GenerateRpm(args) = CargoWrapper::parse();
         args
     } else {
