@@ -58,7 +58,7 @@ pub struct Cli {
     /// This value can also be provided using the SOURCE_DATE_EPOCH
     /// enviroment variable.
     #[arg(long)]
-    pub source_date_epoch: Option<u32>,
+    pub source_date: Option<u32>,
 
     /// Overwrite metadata with TOML file. If "#dotted.key"
     /// suffixed, load "dotted.key" table instead of the root

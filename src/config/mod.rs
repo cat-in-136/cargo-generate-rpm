@@ -158,7 +158,7 @@ impl Config {
 
         let mut builder = rpm::PackageBuilder::new(name, version, license, arch.as_str(), desc)
             .compression(cfg.args.payload_compress);
-        builder = if let Some(t) = cfg.args.source_date_epoch {
+        builder = if let Some(t) = cfg.args.source_date {
             builder.source_date(t)
         } else if let Ok(t) = std::env::var("SOURCE_DATE_EPOCH") {
             let t = t
