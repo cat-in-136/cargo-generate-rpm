@@ -95,7 +95,6 @@ fn run() -> Result<(), Error> {
     Ok(())
 }
 
-
 fn main() {
     if let Err(err) = run() {
         eprintln!("{err}");
