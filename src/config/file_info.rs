@@ -107,14 +107,17 @@ impl FileInfo<'_, '_, '_, '_> {
         parent: P,
         idx: usize,
     ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
-        let profile = build_target.profile();
+        let dir_name = match build_target.profile() {
+            "dev" => "debug",
+            p => p,
+        };
         let source = self
             .source
             .strip_prefix("target/release/")
-            .or_else(|| self.source.strip_prefix(&format!("target/{profile}/")))
+            .or_else(|| self.source.strip_prefix(&format!("target/{dir_name}/")))
             .and_then(|rel_path| {
                 build_target
-                    .target_path(profile)
+                    .target_path(dir_name)
                     .join(rel_path)
                     .to_str()
                     .map(|v| v.to_string())

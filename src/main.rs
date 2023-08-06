@@ -41,7 +41,7 @@ fn collect_metadata(args: &Cli) -> Vec<config::ExtraMetadataSource> {
         .collect::<Vec<_>>()
 }
 
-fn main() -> Result<(), Error> {
+fn run() -> Result<(), Error> {
     let mut args = std::env::args();
     let args = if let Some("generate-rpm") = args.nth(1).as_deref() {
         let CargoWrapper::GenerateRpm(args) = CargoWrapper::parse();
@@ -93,4 +93,12 @@ fn main() -> Result<(), Error> {
     rpm_pkg.write(&mut f)?;
 
     Ok(())
+}
+
+
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
 }
