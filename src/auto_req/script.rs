@@ -33,7 +33,7 @@ pub(super) fn find_requires<P: AsRef<Path>, S: AsRef<OsStr>>(
         .read_to_string(&mut requires)
         .map_err(|e| AutoReqError::ProcessError(script_path.as_ref().to_os_string(), e))?;
 
-    Ok(requires.trim().split("\n").map(&String::from).collect())
+    Ok(requires.trim().split('\n').map(&String::from).collect())
 }
 
 #[test]

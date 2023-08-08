@@ -1,15 +1,30 @@
 use std::env::consts::ARCH;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Default)]
+use crate::cli::Cli;
+
+#[derive(Debug, Clone)]
 pub struct BuildTarget {
-    pub target_dir: Option<String>,
-    pub target: Option<String>,
-    pub profile: Option<String>,
-    pub arch: Option<String>,
+    target_dir: Option<String>,
+    target: Option<String>,
+    profile: String,
+    arch: Option<String>,
 }
 
 impl BuildTarget {
+    pub fn new(args: &Cli) -> Self {
+        Self {
+            target_dir: args.target_dir.clone(),
+            target: args.target.clone(),
+            profile: args.profile.clone(),
+            arch: args.arch.clone(),
+        }
+    }
+
+    pub fn profile(&self) -> &str {
+        self.profile.as_str()
+    }
+
     pub fn build_target_path(&self) -> PathBuf {
         if let Some(target_dir) = &self.target_dir {
             PathBuf::from(&target_dir)
@@ -36,8 +51,8 @@ impl BuildTarget {
             let arch = self
                 .target
                 .as_ref()
-                .and_then(|v| v.splitn(2, "-").nth(0))
-                .unwrap_or_else(|| ARCH);
+                .and_then(|v| v.split('-').next())
+                .unwrap_or(ARCH);
 
             match arch {
                 "x86" => "i586",
@@ -57,12 +72,13 @@ mod test {
 
     #[test]
     fn test_build_target_path() {
-        let target = BuildTarget::default();
+        let args = crate::cli::Cli::default();
+        let target = BuildTarget::new(&args);
         assert_eq!(target.build_target_path(), PathBuf::from("target"));
 
         let target = BuildTarget {
             target_dir: Some("/tmp/foobar/target".to_string()),
-            ..Default::default()
+            ..target
         };
         assert_eq!(
             target.build_target_path(),
@@ -72,15 +88,16 @@ mod test {
 
     #[test]
     fn test_target_path() {
-        let target = BuildTarget::default();
+        let args = crate::cli::Cli::default();
+        let default_target = BuildTarget::new(&args);
         assert_eq!(
-            target.target_path("release"),
+            default_target.target_path("release"),
             PathBuf::from("target/release")
         );
 
         let target = BuildTarget {
             target: Some("x86_64-unknown-linux-gnu".to_string()),
-            ..Default::default()
+            ..default_target.clone()
         };
         assert_eq!(
             target.target_path("release"),
@@ -89,7 +106,7 @@ mod test {
 
         let target = BuildTarget {
             target_dir: Some("/tmp/foobar/target".to_string()),
-            ..Default::default()
+            ..default_target.clone()
         };
         assert_eq!(
             target.target_path("debug"),
@@ -99,7 +116,7 @@ mod test {
         let target = BuildTarget {
             target_dir: Some("/tmp/foobar/target".to_string()),
             target: Some("x86_64-unknown-linux-gnu".to_string()),
-            ..Default::default()
+            ..default_target
         };
         assert_eq!(
             target.target_path("debug"),

@@ -1,5 +1,4 @@
 use glob::glob;
-use rpm::RPMFileOptions;
 use toml::value::Table;
 
 use crate::build_target::BuildTarget;
@@ -53,7 +52,7 @@ impl FileInfo<'_, '_, '_, '_> {
             } else {
                 None
             };
-            let mode = Self::get_mode(&table, source, idx)?;
+            let mode = Self::get_mode(table, source, idx)?;
             let config = if let Some(is_config) = table.get("config") {
                 is_config
                     .as_bool()
@@ -108,18 +107,17 @@ impl FileInfo<'_, '_, '_, '_> {
         parent: P,
         idx: usize,
     ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
-        let profile = match build_target.profile.as_deref() {
-            Some(v) if v == "dev" => "debug",
-            Some(v) => v,
-            None => "release",
+        let dir_name = match build_target.profile() {
+            "dev" => "debug",
+            p => p,
         };
         let source = self
             .source
             .strip_prefix("target/release/")
-            .or_else(|| self.source.strip_prefix(&format!("target/{profile}/")))
+            .or_else(|| self.source.strip_prefix(&format!("target/{dir_name}/")))
             .and_then(|rel_path| {
                 build_target
-                    .target_path(profile)
+                    .target_path(dir_name)
                     .join(rel_path)
                     .to_str()
                     .map(|v| v.to_string())
@@ -127,13 +125,13 @@ impl FileInfo<'_, '_, '_, '_> {
             .unwrap_or(self.source.to_string());
 
         let expanded = expand_glob(source.as_str(), self.dest, idx)?;
-        if expanded.len() > 0 {
+        if !expanded.is_empty() {
             return Ok(expanded);
         }
 
         if let Some(src) = parent.as_ref().join(&source).to_str() {
             let expanded = expand_glob(src, self.dest, idx)?;
-            if expanded.len() > 0 {
+            if !expanded.is_empty() {
                 return Ok(expanded);
             }
         }
@@ -141,8 +139,8 @@ impl FileInfo<'_, '_, '_, '_> {
         Err(ConfigError::AssetFileNotFound(PathBuf::from(source)))
     }
 
-    fn generate_rpm_file_options<T: ToString>(&self, dest: T) -> RPMFileOptions {
-        let mut rpm_file_option = RPMFileOptions::new(dest.to_string());
+    fn generate_rpm_file_options<T: ToString>(&self, dest: T) -> rpm::FileOptions {
+        let mut rpm_file_option = rpm::FileOptions::new(dest.to_string());
         if let Some(user) = self.user {
             rpm_file_option = rpm_file_option.user(user);
         }
@@ -166,7 +164,7 @@ impl FileInfo<'_, '_, '_, '_> {
         build_target: &BuildTarget,
         parent: P,
         idx: usize,
-    ) -> Result<Vec<(PathBuf, RPMFileOptions)>, ConfigError> {
+    ) -> Result<Vec<(PathBuf, rpm::FileOptions)>, ConfigError> {
         self.generate_expanded_path(build_target, parent, idx)
             .map(|p| {
                 p.iter()
@@ -201,8 +199,8 @@ fn expand_glob(
 ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
     let mut vec = Vec::new();
     if source.contains('*') {
-        let base = get_base_from_glob(&source);
-        for path in glob(&source).map_err(|e| ConfigError::AssetGlobInvalid(idx, e.msg))? {
+        let base = get_base_from_glob(source);
+        for path in glob(source).map_err(|e| ConfigError::AssetGlobInvalid(idx, e.msg))? {
             let file = path.map_err(|_| ConfigError::AssetReadFailed(idx))?;
             if file.is_dir() {
                 continue;
@@ -285,8 +283,8 @@ mod test {
             files,
             vec![
                 FileInfo {
-                    source: "target/release/cargo-generate-rpm".into(),
-                    dest: "/usr/bin/cargo-generate-rpm".into(),
+                    source: "target/release/cargo-generate-rpm",
+                    dest: "/usr/bin/cargo-generate-rpm",
                     user: None,
                     group: None,
                     mode: Some(0o0100755),
@@ -294,8 +292,8 @@ mod test {
                     doc: false,
                 },
                 FileInfo {
-                    source: "LICENSE".into(),
-                    dest: "/usr/share/doc/cargo-generate-rpm/LICENSE".into(),
+                    source: "LICENSE",
+                    dest: "/usr/share/doc/cargo-generate-rpm/LICENSE",
                     user: None,
                     group: None,
                     mode: Some(0o0100644),
@@ -303,8 +301,8 @@ mod test {
                     doc: true,
                 },
                 FileInfo {
-                    source: "README.md".into(),
-                    dest: "/usr/share/doc/cargo-generate-rpm/README.md".into(),
+                    source: "README.md",
+                    dest: "/usr/share/doc/cargo-generate-rpm/README.md",
                     user: None,
                     group: None,
                     mode: Some(0o0100644),
@@ -318,10 +316,11 @@ mod test {
     #[test]
     fn test_generate_rpm_file_path() {
         let tempdir = tempfile::tempdir().unwrap();
-        let target = BuildTarget::default();
+        let args = crate::cli::Cli::default();
+        let target = BuildTarget::new(&args);
         let file_info = FileInfo {
-            source: "README.md".into(),
-            dest: "/usr/share/doc/cargo-generate-rpm/README.md".into(),
+            source: "README.md",
+            dest: "/usr/share/doc/cargo-generate-rpm/README.md",
             user: None,
             group: None,
             mode: None,
@@ -340,8 +339,8 @@ mod test {
         );
 
         let file_info = FileInfo {
-            source: "not-exist-file".into(),
-            dest: "/usr/share/doc/cargo-generate-rpm/not-exist-file".into(),
+            source: "not-exist-file",
+            dest: "/usr/share/doc/cargo-generate-rpm/not-exist-file",
             user: None,
             group: None,
             mode: None,
@@ -356,8 +355,8 @@ mod test {
         std::fs::create_dir_all(tempdir.path().join("target/release")).unwrap();
         File::create(tempdir.path().join("target/release/foobar")).unwrap();
         let file_info = FileInfo {
-            source: "target/release/foobar".into(),
-            dest: "/usr/bin/foobar".into(),
+            source: "target/release/foobar",
+            dest: "/usr/bin/foobar",
             user: None,
             group: None,
             mode: None,
@@ -384,7 +383,7 @@ mod test {
             )]
         );
 
-        let target = BuildTarget {
+        let args = crate::cli::Cli {
             target_dir: Some(
                 tempdir
                     .path()
@@ -394,9 +393,9 @@ mod test {
                     .unwrap()
                     .to_string(),
             ),
-            target: None,
             ..Default::default()
         };
+        let target = BuildTarget::new(&args);
         let expanded = file_info
             .generate_expanded_path(&target, &tempdir, 0)
             .unwrap();
@@ -425,15 +424,15 @@ mod test {
         )
         .unwrap();
         let file_info = FileInfo {
-            source: "target/release/my-bin".into(),
-            dest: "/usr/bin/my-bin".into(),
+            source: "target/release/my-bin",
+            dest: "/usr/bin/my-bin",
             user: None,
             group: None,
             mode: None,
             config: false,
             doc: false,
         };
-        let target = BuildTarget {
+        let args = crate::cli::Cli {
             target_dir: Some(
                 tempdir
                     .path()
@@ -444,9 +443,10 @@ mod test {
                     .to_string(),
             ),
             target: Some("target-triple".to_string()),
-            profile: Some("my-profile".to_string()),
+            profile: "my-profile".to_string(),
             ..Default::default()
         };
+        let target = BuildTarget::new(&args);
         let expanded = file_info
             .generate_expanded_path(&target, &tempdir, 0)
             .unwrap();

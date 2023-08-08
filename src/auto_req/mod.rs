@@ -1,5 +1,4 @@
-use crate::error::AutoReqError;
-use std::convert::TryFrom;
+use crate::{cli, error::AutoReqError};
 use std::path::{Path, PathBuf};
 
 mod builtin;
@@ -20,44 +19,19 @@ pub enum AutoReqMode {
     BuiltIn,
 }
 
-impl TryFrom<String> for AutoReqMode {
-    type Error = AutoReqError;
+impl From<&Option<cli::AutoReqMode>> for AutoReqMode {
+    fn from(value: &Option<cli::AutoReqMode>) -> Self {
+        use cli::AutoReqMode as M;
+        use AutoReqMode::*;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
-            "auto" | "" => Ok(AutoReqMode::Auto),
-            "no" | "disabled" => Ok(AutoReqMode::Disabled),
-            "builtin" => Ok(AutoReqMode::BuiltIn),
-            "find-requires" => Ok(AutoReqMode::Script(PathBuf::from(RPM_FIND_REQUIRES))),
-            v if Path::new(v).exists() => Ok(AutoReqMode::Script(PathBuf::from(v))),
-            _ => Err(AutoReqError::WrongMode),
+        match value {
+            None => Auto,
+            Some(M::Disabled) => Disabled,
+            Some(M::Builtin) => BuiltIn,
+            Some(M::Script(path)) => Script(path.into()),
+            Some(M::FindRequires) => Script(PathBuf::from(RPM_FIND_REQUIRES)),
         }
     }
-}
-
-#[test]
-pub fn test_try_from_for_auto_req_mode() {
-    for (text, auto_req_mode) in &[
-        ("auto", AutoReqMode::Auto),
-        ("", AutoReqMode::Auto),
-        ("no", AutoReqMode::Disabled),
-        ("disabled", AutoReqMode::Disabled),
-        (
-            "find-requires",
-            AutoReqMode::Script(PathBuf::from(RPM_FIND_REQUIRES)),
-        ),
-        (file!(), AutoReqMode::Script(PathBuf::from(file!()))),
-    ] {
-        assert_eq!(
-            AutoReqMode::try_from(text.to_string()).unwrap(),
-            *auto_req_mode
-        );
-    }
-
-    assert!(matches!(
-        AutoReqMode::try_from("invalid-value".to_string()),
-        Err(AutoReqError::WrongMode)
-    ));
 }
 
 /// Find requires

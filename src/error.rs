@@ -1,5 +1,4 @@
 use cargo_toml::Error as CargoTomlError;
-use rpm::RPMError;
 use std::error::Error as StdError;
 use std::ffi::OsString;
 use std::fmt::{Debug, Display, Formatter};
@@ -57,18 +56,10 @@ impl<E: StdError + Display> Display for FileAnnotatedError<E> {
 
 #[derive(thiserror::Error, Debug)]
 pub enum AutoReqError {
-    #[error("Wrong auto-req mode")]
-    WrongMode,
     #[error("Failed to execute `{}`: {1}", .0.clone().into_string().unwrap_or_default())]
     ProcessError(OsString, #[source] IoError),
     #[error(transparent)]
     Io(#[from] IoError),
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum PayloadCompressError {
-    #[error("Unsupported payload compress type: {0}")]
-    UnsupportedType(String),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -77,6 +68,8 @@ pub enum Error {
     CargoToml(#[from] CargoTomlError),
     #[error(transparent)]
     Config(#[from] ConfigError),
+    #[error("Invalid value of enviroment variable {0}: {1}")]
+    EnvError(&'static str, String),
     #[error(transparent)]
     ParseTomlFile(#[from] FileAnnotatedError<TomlDeError>),
     #[error(transparent)]
@@ -84,9 +77,7 @@ pub enum Error {
     #[error(transparent)]
     AutoReq(#[from] AutoReqError),
     #[error(transparent)]
-    Rpm(#[from] RPMError),
-    #[error(transparent)]
-    PayloadCompress(#[from] PayloadCompressError),
+    Rpm(#[from] rpm::Error),
     #[error("{1}: {0}")]
     FileIo(PathBuf, #[source] IoError),
     #[error(transparent)]

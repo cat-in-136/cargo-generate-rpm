@@ -164,7 +164,7 @@ impl<'a> MetadataConfig<'a> {
     pub fn new(metadata: &'a Table, branch_path: Option<String>) -> Self {
         Self {
             metadata,
-            branch_path: branch_path.map(|v| v.to_string()),
+            branch_path,
         }
     }
 
@@ -298,7 +298,7 @@ impl<'a> CompoundMetadataConfig<'a> {
         F: Fn(&MetadataConfig<'a>) -> Result<Option<T>, ConfigError>,
     {
         for item in self.config.iter().rev() {
-            match func(&item) {
+            match func(item) {
                 v @ (Ok(Some(_)) | Err(_)) => return v,
                 Ok(None) => continue,
             }
@@ -377,11 +377,11 @@ mod test {
         assert_eq!(metadata_config.get_str("not-exist").unwrap(), None);
         assert!(matches!(
             metadata_config.get_str("int"),
-            Err(ConfigError::WrongType(v, "string")) if v == "int".to_string()
+            Err(ConfigError::WrongType(v, "string")) if v == "int"
         ));
         assert!(matches!(
             metadata_config.get_string_or_i64("array"),
-            Err(ConfigError::WrongType(v, "string or integer")) if v == "array".to_string()
+            Err(ConfigError::WrongType(v, "string or integer")) if v == "array"
         ));
 
         let metadata_config = MetadataConfig {
@@ -390,11 +390,11 @@ mod test {
         };
         assert!(matches!(
             metadata_config.get_str("int"),
-            Err(ConfigError::WrongType(v, "string")) if v == "branch.int".to_string()
+            Err(ConfigError::WrongType(v, "string")) if v == "branch.int"
         ));
         assert!(matches!(
             metadata_config.get_string_or_i64("array"),
-            Err(ConfigError::WrongType(v, "string or integer")) if v == "branch.array".to_string()
+            Err(ConfigError::WrongType(v, "string or integer")) if v == "branch.array"
         ));
     }
 
@@ -413,7 +413,7 @@ mod test {
         let metadata_config = metadata
             .iter()
             .map(|v| MetadataConfig {
-                metadata: &v,
+                metadata: v,
                 branch_path: None,
             })
             .collect::<Vec<_>>();

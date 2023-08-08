@@ -1,52 +1,19 @@
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 use cargo_toml::Error as CargoTomlError;
 use cargo_toml::Manifest;
-use rpm::{CompressionType, Dependency, RPMBuilder};
+use rpm::Dependency;
 use toml::value::Table;
 
 use crate::auto_req::{find_requires, AutoReqMode};
 use crate::build_target::BuildTarget;
-use crate::error::{ConfigError, Error, PayloadCompressError};
+use crate::cli::Cli;
+use crate::error::{ConfigError, Error};
 use file_info::FileInfo;
 use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueHelper};
 
 mod file_info;
 mod metadata;
-
-#[derive(Debug, Clone, Default)]
-pub enum PayloadCompressType {
-    None,
-    Gzip,
-    #[default]
-    Zstd,
-    Xz,
-}
-
-impl FromStr for PayloadCompressType {
-    type Err = PayloadCompressError;
-    fn from_str(raw: &str) -> Result<Self, Self::Err> {
-        match raw {
-            "none" => Ok(PayloadCompressType::None),
-            "gzip" => Ok(PayloadCompressType::Gzip),
-            "zstd" => Ok(PayloadCompressType::Zstd),
-            "xz" => Ok(PayloadCompressType::Xz),
-            _ => Err(PayloadCompressError::UnsupportedType(raw.to_string())),
-        }
-    }
-}
-
-impl From<PayloadCompressType> for CompressionType {
-    fn from(value: PayloadCompressType) -> Self {
-        match value {
-            PayloadCompressType::None => Self::None,
-            PayloadCompressType::Gzip => Self::Gzip,
-            PayloadCompressType::Zstd => Self::Zstd,
-            PayloadCompressType::Xz => Self::Xz,
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum ExtraMetadataSource {
@@ -55,23 +22,14 @@ pub enum ExtraMetadataSource {
 }
 
 #[derive(Debug)]
-pub struct RpmBuilderConfig<'a> {
+pub struct BuilderConfig<'a> {
     build_target: &'a BuildTarget,
-    auto_req_mode: AutoReqMode,
-    payload_compress: PayloadCompressType,
+    args: &'a Cli,
 }
 
-impl<'a> RpmBuilderConfig<'a> {
-    pub fn new(
-        build_target: &'a BuildTarget,
-        auto_req_mode: AutoReqMode,
-        payload_compress: PayloadCompressType,
-    ) -> RpmBuilderConfig<'a> {
-        RpmBuilderConfig {
-            build_target,
-            auto_req_mode,
-            payload_compress,
-        }
+impl<'a> BuilderConfig<'a> {
+    pub fn new(build_target: &'a BuildTarget, args: &'a Cli) -> BuilderConfig<'a> {
+        BuilderConfig { build_target, args }
     }
 }
 
@@ -122,7 +80,7 @@ impl Config {
 
         let extra_metadata = extra_metadata
             .iter()
-            .map(|v| ExtraMetaData::new(v))
+            .map(ExtraMetaData::new)
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Config {
@@ -143,7 +101,7 @@ impl Config {
                 .as_str()
                 .ok_or(ConfigError::WrongDependencyVersion(key.clone()))?
                 .trim();
-            let ver_vec = ver.trim().split_whitespace().collect::<Vec<_>>();
+            let ver_vec = ver.split_whitespace().collect::<Vec<_>>();
             let dependency = match ver_vec.as_slice() {
                 [] | ["*"] => Ok(Dependency::any(key)),
                 ["<", ver] => Ok(Dependency::less(key.as_str(), ver.trim())),
@@ -158,10 +116,7 @@ impl Config {
         Ok(dependencies)
     }
 
-    pub fn create_rpm_builder(
-        &self,
-        rpm_builder_config: RpmBuilderConfig,
-    ) -> Result<RPMBuilder, Error> {
+    pub fn create_rpm_builder(&self, cfg: BuilderConfig) -> Result<rpm::PackageBuilder, Error> {
         let mut metadata_config = Vec::new();
         metadata_config.push(MetadataConfig::new_from_manifest(&self.manifest)?);
         for v in &self.extra_metadata {
@@ -174,9 +129,7 @@ impl Config {
             .package
             .as_ref()
             .ok_or(ConfigError::Missing("package".to_string()))?;
-        let name = metadata
-            .get_str("name")?
-            .unwrap_or_else(|| pkg.name.as_str());
+        let name = metadata.get_str("name")?.unwrap_or(pkg.name.as_str());
         let version = match metadata.get_str("version")? {
             Some(v) => v,
             None => pkg.version.get()?,
@@ -186,7 +139,7 @@ impl Config {
             (None, None) => Err(ConfigError::Missing("package.license".to_string()))?,
             (None, Some(v)) => v.get()?,
         };
-        let arch = rpm_builder_config.build_target.binary_arch();
+        let arch = cfg.build_target.binary_arch();
         let desc = match (
             metadata.get_str("summary")?,
             metadata.get_str("description")?,
@@ -203,12 +156,22 @@ impl Config {
         let files = FileInfo::new(assets)?;
         let parent = self.manifest_path.parent().unwrap();
 
-        let mut builder = RPMBuilder::new(name, version, license, arch.as_str(), desc)
-            .compression(CompressionType::from(rpm_builder_config.payload_compress));
+        let mut builder = rpm::PackageBuilder::new(name, version, license, arch.as_str(), desc)
+            .compression(cfg.args.payload_compress);
+        builder = if let Some(t) = cfg.args.source_date {
+            builder.source_date(t)
+        } else if let Ok(t) = std::env::var("SOURCE_DATE_EPOCH") {
+            let t = t
+                .parse::<u32>()
+                .map_err(|err| Error::EnvError("SOURCE_DATE_EPOCH", err.to_string()))?;
+            builder.source_date(t)
+        } else {
+            builder
+        };
+
         let mut expanded_file_paths = vec![];
         for (idx, file) in files.iter().enumerate() {
-            let entries =
-                file.generate_rpm_file_entry(rpm_builder_config.build_target, parent, idx)?;
+            let entries = file.generate_rpm_file_entry(cfg.build_target, parent, idx)?;
             for (file_source, options) in entries {
                 expanded_file_paths.push(file_source.clone());
                 builder = builder.with_file(file_source, options)?;
@@ -261,13 +224,13 @@ impl Config {
                 builder = builder.requires(dependency);
             }
         }
-        let auto_req = if rpm_builder_config.auto_req_mode == AutoReqMode::Auto
-            && matches!(metadata.get_str("auto-req")?, Some("no") | Some("disabled"))
-        {
-            AutoReqMode::Disabled
-        } else {
-            rpm_builder_config.auto_req_mode
+
+        let meta_aut_req = metadata.get_str("auto-req")?;
+        let auto_req = match (&cfg.args.auto_req, meta_aut_req) {
+            (None, Some("no" | "disabled")) => AutoReqMode::Disabled,
+            (r, _) => r.into(),
         };
+
         for requires in find_requires(expanded_file_paths, auto_req)? {
             builder = builder.requires(Dependency::any(requires));
         }
@@ -320,7 +283,7 @@ mod test {
 
         std::fs::create_dir(&workspace_dir).unwrap();
         std::fs::write(
-            &workspace_dir.join("Cargo.toml"),
+            workspace_dir.join("Cargo.toml"),
             r#"
 [workspace]
 members = ["bar"]
@@ -335,7 +298,7 @@ documentation = "https://example.com/bar"
         .unwrap();
         std::fs::create_dir(&project_dir).unwrap();
         std::fs::write(
-            &project_dir.join("Cargo.toml"),
+            project_dir.join("Cargo.toml"),
             r#"
 [package]
 name = "bar"
@@ -421,14 +384,15 @@ documentation.workspace = true
     #[test]
     fn test_config_create_rpm_builder() {
         let config = Config::new(Path::new("."), None, &[]).unwrap();
-        let builder = config.create_rpm_builder(RpmBuilderConfig::new(
-            &BuildTarget::default(),
-            AutoReqMode::Disabled,
-            PayloadCompressType::default(),
-        ));
+        let args = crate::cli::Cli {
+            ..Default::default()
+        };
+        let target = BuildTarget::new(&args);
+        let cfg = BuilderConfig::new(&target, &args);
+        let builder = config.create_rpm_builder(cfg);
 
         assert!(if Path::new("target/release/cargo-generate-rpm").exists() {
-            matches!(builder, Ok(_))
+            builder.is_ok()
         } else {
             matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path.to_str() == Some("target/release/cargo-generate-rpm"))
         });
