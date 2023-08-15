@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use toml::Value;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct FileInfo<'a, 'b, 'c, 'd> {
+pub struct FileInfo<'a, 'b, 'c, 'd, 'e> {
     pub source: &'a str,
     pub dest: &'b str,
     pub user: Option<&'c str>,
@@ -15,9 +15,10 @@ pub struct FileInfo<'a, 'b, 'c, 'd> {
     pub mode: Option<usize>,
     pub config: bool,
     pub doc: bool,
+    pub caps: Option<&'e str>,
 }
 
-impl FileInfo<'_, '_, '_, '_> {
+impl FileInfo<'_, '_, '_, '_, '_> {
     pub fn new(assets: &[Value]) -> Result<Vec<FileInfo>, ConfigError> {
         let mut files = Vec::with_capacity(assets.len());
         for (idx, value) in assets.iter().enumerate() {
@@ -53,6 +54,14 @@ impl FileInfo<'_, '_, '_, '_> {
                 None
             };
             let mode = Self::get_mode(table, source, idx)?;
+            let caps = if let Some(caps) = table.get("caps") {
+                Some(
+                    caps.as_str()
+                        .ok_or(ConfigError::AssetFileWrongType(idx, "caps", "string"))?,
+                )
+            } else {
+                None
+            };
             let config = if let Some(is_config) = table.get("config") {
                 is_config
                     .as_bool()
@@ -76,6 +85,7 @@ impl FileInfo<'_, '_, '_, '_> {
                 mode,
                 config,
                 doc,
+                caps,
             });
         }
         Ok(files)
@@ -139,7 +149,10 @@ impl FileInfo<'_, '_, '_, '_> {
         Err(ConfigError::AssetFileNotFound(PathBuf::from(source)))
     }
 
-    fn generate_rpm_file_options<T: ToString>(&self, dest: T) -> rpm::FileOptions {
+    fn generate_rpm_file_options<T: ToString>(
+        &self,
+        dest: T,
+    ) -> Result<rpm::FileOptions, ConfigError> {
         let mut rpm_file_option = rpm::FileOptions::new(dest.to_string());
         if let Some(user) = self.user {
             rpm_file_option = rpm_file_option.user(user);
@@ -150,13 +163,19 @@ impl FileInfo<'_, '_, '_, '_> {
         if let Some(mode) = self.mode {
             rpm_file_option = rpm_file_option.mode(mode as i32);
         }
+        if let Some(caps) = self.caps {
+            rpm_file_option = match rpm_file_option.caps(caps) {
+                Ok(v) => v,
+                Err(_) => return Err(ConfigError::WrongType("caps".to_string(), "capability")),
+            };
+        }
         if self.config {
             rpm_file_option = rpm_file_option.is_config();
         }
         if self.doc {
             rpm_file_option = rpm_file_option.is_doc();
         }
-        rpm_file_option.into()
+        Ok(rpm_file_option.into())
     }
 
     pub(crate) fn generate_rpm_file_entry<P: AsRef<Path>>(
@@ -165,12 +184,14 @@ impl FileInfo<'_, '_, '_, '_> {
         parent: P,
         idx: usize,
     ) -> Result<Vec<(PathBuf, rpm::FileOptions)>, ConfigError> {
-        self.generate_expanded_path(build_target, parent, idx)
-            .map(|p| {
-                p.iter()
-                    .map(|(src, dst)| (src.clone(), self.generate_rpm_file_options(dst)))
-                    .collect::<Vec<_>>()
-            })
+        match self.generate_expanded_path(build_target, parent, idx) {
+            Ok(v) => v.into_iter().try_fold(Vec::new(), |mut acc, (src, dst)| {
+                let rpm_file_option = self.generate_rpm_file_options(dst)?;
+                acc.push((src, rpm_file_option));
+                Ok(acc)
+            }),
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -290,6 +311,7 @@ mod test {
                     mode: Some(0o0100755),
                     config: false,
                     doc: false,
+                    caps: None,
                 },
                 FileInfo {
                     source: "LICENSE",
@@ -299,6 +321,7 @@ mod test {
                     mode: Some(0o0100644),
                     config: false,
                     doc: true,
+                    caps: None,
                 },
                 FileInfo {
                     source: "README.md",
@@ -308,6 +331,7 @@ mod test {
                     mode: Some(0o0100644),
                     config: false,
                     doc: true,
+                    caps: None,
                 },
             ]
         );
@@ -326,6 +350,7 @@ mod test {
             mode: None,
             config: false,
             doc: true,
+            caps: Some("cap_sys_admin=pe"),
         };
         let expanded = file_info
             .generate_expanded_path(&target, &tempdir, 0)
@@ -346,6 +371,7 @@ mod test {
             mode: None,
             config: false,
             doc: true,
+            caps: None,
         };
         assert!(
             matches!(file_info.generate_expanded_path(&target, &tempdir, 0),
@@ -362,6 +388,7 @@ mod test {
             mode: None,
             config: false,
             doc: false,
+            caps: None,
         };
         let expanded = file_info
             .generate_expanded_path(&target, &tempdir, 0)
@@ -431,6 +458,7 @@ mod test {
             mode: None,
             config: false,
             doc: false,
+            caps: None,
         };
         let args = crate::cli::Cli {
             target_dir: Some(

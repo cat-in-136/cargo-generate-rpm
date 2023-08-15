@@ -53,6 +53,7 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
     * doc: set true if it is a document file.
     * user: the owner of the file.
     * group: the group owner of the file.
+    * caps: optional string of capabilities. (e.g. `cap_sys_admin=pe`)
 * release: optional string of release.
 * epoch: optional number of epoch.
 * pre_install_script: optional string of pre_install_script.
@@ -198,4 +199,3 @@ The default payload compress type of the generated RPM file is zstd.
 You can specify the payload compress type with `--payload-compress TYPE`: none, gzip, or zstd.
 
 For the legacy system (e.g. centos7), specify legacy compress type explicitly e.g. `--payload-compress none`.
-
