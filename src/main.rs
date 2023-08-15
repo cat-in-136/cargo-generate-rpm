@@ -76,7 +76,7 @@ fn run() -> Result<(), Error> {
         .unwrap_or_default();
     let file_name = format!("{pkg_name}-{pkg_version}{pkg_release}{pkg_arch}.rpm");
 
-    let target_file_name = match args.target.map(PathBuf::from) {
+    let target_file_name = match args.output.map(PathBuf::from) {
         Some(path) if path.is_dir() => path.join(file_name),
         Some(path) => path,
         None => build_target.target_path("generate-rpm").join(file_name),
