@@ -41,6 +41,18 @@ fn collect_metadata(args: &Cli) -> Vec<config::ExtraMetadataSource> {
         .collect::<Vec<_>>()
 }
 
+fn determine_output_dir(
+    output: Option<&PathBuf>,
+    file_name: &str,
+    build_target: BuildTarget,
+) -> PathBuf {
+    match output.as_ref().map(PathBuf::from) {
+        Some(path) if path.is_dir() => path.join(file_name),
+        Some(path) => path,
+        None => build_target.target_path("generate-rpm").join(file_name),
+    }
+}
+
 fn run() -> Result<(), Error> {
     let mut args = std::env::args();
     let args = if let Some("generate-rpm") = args.nth(1).as_deref() {
@@ -91,18 +103,6 @@ fn run() -> Result<(), Error> {
     Ok(())
 }
 
-fn determine_output_dir(
-    output: Option<&PathBuf>,
-    file_name: &String,
-    build_target: BuildTarget,
-) -> PathBuf {
-    match output.as_ref().map(PathBuf::from) {
-        Some(path) if path.is_dir() => path.join(file_name),
-        Some(path) => path,
-        None => build_target.target_path("generate-rpm").join(file_name),
-    }
-}
-
 fn main() {
     if let Err(err) = run() {
         eprintln!("{err}");
@@ -118,25 +118,25 @@ mod tests {
     // 2. Output is a file
     // 3. Output is not specified
     #[test]
-    fn test_ouput_is_dir() {
+    fn test_output_is_dir() {
         let tempdir = tempfile::tempdir().unwrap();
         let pathbufbinding = &tempdir.path().to_path_buf();
 
         let output = Some(pathbufbinding);
-        let file_name = String::from("test.rpm");
+        let file_name = "test.rpm";
         let build_target = BuildTarget::new(&crate::cli::Cli::default());
 
         let target_file_name = determine_output_dir(output, &file_name, build_target);
         assert_eq!(target_file_name, tempdir.path().join("test.rpm"));
     }
     #[test]
-    fn test_ouput_is_file() {
+    fn test_output_is_file() {
         let tempdir = tempfile::tempdir().unwrap();
         let pathbufbinding = &tempdir.path().to_path_buf();
         let temppath = pathbufbinding.join("foo.rpm");
 
         let output = Some(&temppath);
-        let file_name = String::from("test.rpm");
+        let file_name = "test.rpm";
         let build_target = BuildTarget::new(&crate::cli::Cli::default());
 
         let target_file_name = determine_output_dir(output, &file_name, build_target);
@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn test_no_output_specified() {
         let output = None;
-        let file_name = String::from("test.rpm");
+        let file_name = "test.rpm";
         let build_target = BuildTarget::new(&crate::cli::Cli::default());
 
         let target_file_name = determine_output_dir(output, &file_name, build_target);
