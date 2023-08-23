@@ -107,22 +107,7 @@ impl FileInfo<'_, '_, '_, '_> {
         parent: P,
         idx: usize,
     ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
-        let dir_name = match build_target.profile() {
-            "dev" => "debug",
-            p => p,
-        };
-        let source = self
-            .source
-            .strip_prefix("target/release/")
-            .or_else(|| self.source.strip_prefix(&format!("target/{dir_name}/")))
-            .and_then(|rel_path| {
-                build_target
-                    .target_path(dir_name)
-                    .join(rel_path)
-                    .to_str()
-                    .map(|v| v.to_string())
-            })
-            .unwrap_or(self.source.to_string());
+        let source = get_asset_rel_path(&self.source, build_target);
 
         let expanded = expand_glob(source.as_str(), self.dest, idx)?;
         if !expanded.is_empty() {
@@ -190,6 +175,24 @@ fn get_base_from_glob(glob: &'_ str) -> PathBuf {
     };
 
     out_path.into()
+}
+
+pub(crate) fn get_asset_rel_path(asset: &str, build_target: &BuildTarget) -> String {
+    let dir_name = match build_target.profile() {
+        "dev" => "debug",
+        p => p,
+    };
+    asset
+        .strip_prefix("target/release/")
+        .or_else(|| asset.strip_prefix(&format!("target/{dir_name}/")))
+        .and_then(|rel_path| {
+            build_target
+                .target_path(dir_name)
+                .join(rel_path)
+                .to_str()
+                .map(|v| v.to_string())
+        })
+        .unwrap_or(asset.to_string())
 }
 
 fn expand_glob(
