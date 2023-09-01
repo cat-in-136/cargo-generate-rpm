@@ -88,7 +88,6 @@ fn run() -> Result<(), Error> {
         .unwrap_or_default();
     let file_name = format!("{pkg_name}-{pkg_version}{pkg_release}{pkg_arch}.rpm");
 
-
     let target_file_name = determine_output_dir(args.output.as_ref(), &file_name, build_target);
 
     if let Some(parent_dir) = target_file_name.parent() {
