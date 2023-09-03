@@ -59,6 +59,7 @@ impl BuildTarget {
                 "arm" => "armhfp",
                 "powerpc" => "ppc",
                 "powerpc64" => "ppc64",
+                "powerpc64le" => "ppc64le",
                 _ => arch,
             }
             .to_string()
