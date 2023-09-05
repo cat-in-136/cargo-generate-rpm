@@ -186,16 +186,32 @@ impl Config {
         }
 
         if let Some(pre_install_script) = metadata.get_str("pre_install_script")? {
-            builder = builder.pre_install_script(pre_install_script);
+            builder = builder.pre_install_script(&load_script_if_path(
+                pre_install_script,
+                parent,
+                cfg.build_target,
+            )?);
         }
         if let Some(pre_uninstall_script) = metadata.get_str("pre_uninstall_script")? {
-            builder = builder.pre_uninstall_script(pre_uninstall_script);
+            builder = builder.pre_uninstall_script(&load_script_if_path(
+                pre_uninstall_script,
+                parent,
+                cfg.build_target,
+            )?);
         }
         if let Some(post_install_script) = metadata.get_str("post_install_script")? {
-            builder = builder.post_install_script(post_install_script);
+            builder = builder.post_install_script(&load_script_if_path(
+                post_install_script,
+                parent,
+                cfg.build_target,
+            )?);
         }
         if let Some(post_uninstall_script) = metadata.get_str("post_uninstall_script")? {
-            builder = builder.post_uninstall_script(post_uninstall_script);
+            builder = builder.post_uninstall_script(&load_script_if_path(
+                post_uninstall_script,
+                parent,
+                cfg.build_target,
+            )?);
         }
 
         if let Some(url) = match (
@@ -252,6 +268,24 @@ impl Config {
 
         Ok(builder)
     }
+}
+
+pub(crate) fn load_script_if_path<P: AsRef<Path>>(
+    asset: &str,
+    parent: P,
+    build_target: &BuildTarget,
+) -> std::io::Result<String> {
+    let relpath = file_info::get_asset_rel_path(asset, build_target);
+
+    if Path::new(&relpath).exists() {
+        return Ok(std::fs::read_to_string(relpath)?);
+    } else if let Some(p) = parent.as_ref().join(&relpath).to_str() {
+        if Path::new(&p).exists() {
+            return Ok(std::fs::read_to_string(p)?);
+        }
+    }
+
+    Ok(asset.to_string())
 }
 
 #[cfg(test)]

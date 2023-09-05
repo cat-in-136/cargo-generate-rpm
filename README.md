@@ -55,10 +55,10 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
     * group: the group owner of the file.
 * release: optional string of release.
 * epoch: optional number of epoch.
-* pre_install_script: optional string of pre_install_script.
-* pre_uninstall_script: optional string of pre_uninstall_script.
-* post_install_script: optional string of post_install_script.
-* post_uninstall_script: optional string of post_uninstall_script.
+* pre_install_script: optional string or file path of pre_install_script.
+* pre_uninstall_script: optional string or file path of pre_uninstall_script.
+* post_install_script: optional string or file path of post_install_script.
+* post_uninstall_script: optional string or file path of post_uninstall_script.
 * requires: optional list of Requires
 * auto-req: optional string `"no"` to disable the automatic dependency process
 * require-sh: optional boolean `false` to omit `/bin/sh` from Requirements
