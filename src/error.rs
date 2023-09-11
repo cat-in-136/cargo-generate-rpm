@@ -40,6 +40,8 @@ pub enum ConfigError {
     WrongBranchPathOfToml(String, #[source] DottedBareKeyLexError),
     #[error("Branch `{0}' not found")]
     BranchPathNotFoundInToml(String),
+    #[error("Field {1} for file {0} has the following error: {2}")]
+    AssetFileRpm(usize, &'static str, String),
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -152,6 +152,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
     fn generate_rpm_file_options<T: ToString>(
         &self,
         dest: T,
+        idx: usize,
     ) -> Result<rpm::FileOptions, ConfigError> {
         let mut rpm_file_option = rpm::FileOptions::new(dest.to_string());
         if let Some(user) = self.user {
@@ -163,17 +164,16 @@ impl FileInfo<'_, '_, '_, '_, '_> {
         if let Some(mode) = self.mode {
             rpm_file_option = rpm_file_option.mode(mode as i32);
         }
-        if let Some(caps) = self.caps {
-            rpm_file_option = match rpm_file_option.caps(caps) {
-                Ok(v) => v,
-                Err(_) => return Err(ConfigError::WrongType("caps".to_string(), "capability")),
-            };
-        }
         if self.config {
             rpm_file_option = rpm_file_option.is_config();
         }
         if self.doc {
             rpm_file_option = rpm_file_option.is_doc();
+        }
+        if let Some(caps) = self.caps {
+            rpm_file_option = rpm_file_option
+                .caps(caps)
+                .map_err(|err| ConfigError::AssetFileRpm(idx, "caps", err.to_string()))?;
         }
         Ok(rpm_file_option.into())
     }
@@ -184,14 +184,13 @@ impl FileInfo<'_, '_, '_, '_, '_> {
         parent: P,
         idx: usize,
     ) -> Result<Vec<(PathBuf, rpm::FileOptions)>, ConfigError> {
-        match self.generate_expanded_path(build_target, parent, idx) {
-            Ok(v) => v.into_iter().try_fold(Vec::new(), |mut acc, (src, dst)| {
-                let rpm_file_option = self.generate_rpm_file_options(dst)?;
-                acc.push((src, rpm_file_option));
-                Ok(acc)
-            }),
-            Err(e) => Err(e),
-        }
+        self.generate_expanded_path(build_target, parent, idx)?
+            .iter()
+            .map(|(src, dst)| {
+                self.generate_rpm_file_options(dst, idx)
+                    .map(|v| (src.clone(), v))
+            })
+            .collect::<Result<Vec<_>, _>>()
     }
 }
 
