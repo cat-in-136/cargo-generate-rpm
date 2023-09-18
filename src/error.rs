@@ -41,7 +41,7 @@ pub enum ConfigError {
     #[error("Branch `{0}' not found")]
     BranchPathNotFoundInToml(String),
     #[error("Field {1} for file {0} has the following error: {2}")]
-    AssetFileRpm(usize, &'static str, String),
+    AssetFileRpm(usize, &'static str, #[source] std::rc::Rc<rpm::Error>),
 }
 
 #[derive(thiserror::Error, Debug)]

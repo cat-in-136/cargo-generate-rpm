@@ -173,7 +173,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
         if let Some(caps) = self.caps {
             rpm_file_option = rpm_file_option
                 .caps(caps)
-                .map_err(|err| ConfigError::AssetFileRpm(idx, "caps", err.to_string()))?;
+                .map_err(|err| ConfigError::AssetFileRpm(idx, "caps", err.into()))?;
         }
         Ok(rpm_file_option.into())
     }
