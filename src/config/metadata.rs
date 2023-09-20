@@ -145,8 +145,8 @@ impl ExtraMetaData {
             toml_dotted_bare_key_parser::parse_dotted_bare_keys(branch.as_ref())
                 .map_err(|e| ConfigError::WrongBranchPathOfToml(branch.clone(), e))?
                 .iter()
-                .fold(Some(root), |table, key| {
-                    table.and_then(|v| v.get(*key).and_then(|v| v.as_table()))
+                .try_fold(root, |table, key| {
+                    table.get(*key).and_then(|v| v.as_table())
                 })
                 .ok_or(ConfigError::BranchPathNotFoundInToml(branch.to_string()))
         } else {
