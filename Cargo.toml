@@ -9,11 +9,11 @@ readme = "README.md"
 keywords = ["rpm", "package", "cargo", "subcommand"]
 repository = "https://github.com/cat-in-136/cargo-generate-rpm"
 version = "0.12.1"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 glob = "0.3.0"
-rpm = { version = "0.12", default-features = false }
+rpm = { version = "0.12.1", default-features = false }
 toml = "0.7"
 cargo_toml = "0.15"
 clap = { version = "4.3", features = ["derive"] }
