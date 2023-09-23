@@ -126,7 +126,7 @@ mod tests {
         let file_name = "test.rpm";
         let build_target = BuildTarget::new(&crate::cli::Cli::default());
 
-        let target_file_name = determine_output_dir(output, &file_name, build_target);
+        let target_file_name = determine_output_dir(output, file_name, build_target);
         assert_eq!(target_file_name, tempdir.path().join("test.rpm"));
     }
     #[test]
@@ -139,7 +139,7 @@ mod tests {
         let file_name = "test.rpm";
         let build_target = BuildTarget::new(&crate::cli::Cli::default());
 
-        let target_file_name = determine_output_dir(output, &file_name, build_target);
+        let target_file_name = determine_output_dir(output, file_name, build_target);
         assert_eq!(target_file_name, temppath);
     }
 
@@ -149,7 +149,7 @@ mod tests {
         let file_name = "test.rpm";
         let build_target = BuildTarget::new(&crate::cli::Cli::default());
 
-        let target_file_name = determine_output_dir(output, &file_name, build_target);
+        let target_file_name = determine_output_dir(output, file_name, build_target);
         assert_eq!(
             target_file_name,
             PathBuf::from("target/generate-rpm/test.rpm")

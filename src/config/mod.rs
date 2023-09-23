@@ -278,10 +278,10 @@ pub(crate) fn load_script_if_path<P: AsRef<Path>>(
     let relpath = file_info::get_asset_rel_path(asset, build_target);
 
     if Path::new(&relpath).exists() {
-        return Ok(std::fs::read_to_string(relpath)?);
+        return std::fs::read_to_string(relpath);
     } else if let Some(p) = parent.as_ref().join(&relpath).to_str() {
         if Path::new(&p).exists() {
-            return Ok(std::fs::read_to_string(p)?);
+            return std::fs::read_to_string(p);
         }
     }
 

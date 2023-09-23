@@ -117,7 +117,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
         parent: P,
         idx: usize,
     ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
-        let source = get_asset_rel_path(&self.source, build_target);
+        let source = get_asset_rel_path(self.source, build_target);
 
         let expanded = expand_glob(source.as_str(), self.dest, idx)?;
         if !expanded.is_empty() {
