@@ -1,6 +1,7 @@
 use crate::error::{ConfigError, FileAnnotatedError};
 use crate::{Error, ExtraMetadataSource};
 use cargo_toml::Manifest;
+use rpm::Scriptlet;
 use std::fs;
 use std::path::PathBuf;
 use toml::value::Table;
@@ -304,6 +305,26 @@ impl<'a> CompoundMetadataConfig<'a> {
             }
         }
         Ok(None)
+    }
+    
+    /// Returns a configured scriptlet, 
+    /// 
+    pub(super) fn get_scriptlet(&self, name: &str, content: impl Into<String>) -> Result<Option<Scriptlet>, ConfigError> {
+        let flags_key = format!("{name}_flags");
+        let prog_key = format!("{name}_prog");
+
+        let mut scriptlet = Scriptlet::new(content);
+
+        if let Some(flags) = self.get_i64(flags_key.as_str())? {
+            scriptlet = scriptlet.flags(rpm::ScriptletFlags::from_bits_retain(flags as u32));
+        }
+
+        if let Some(prog) = self.get_array(prog_key.as_str())? {
+            let prog = prog.iter().filter_map(|p| p.as_str());
+            scriptlet = scriptlet.prog(prog.collect());
+        }
+
+        Ok(Some(scriptlet))
     }
 }
 

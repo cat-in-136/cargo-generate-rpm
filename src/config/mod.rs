@@ -186,32 +186,91 @@ impl Config {
         }
 
         if let Some(pre_install_script) = metadata.get_str("pre_install_script")? {
-            builder = builder.pre_install_script(&load_script_if_path(
-                pre_install_script,
-                parent,
-                cfg.build_target,
-            )?);
+            let scriptlet = metadata.get_scriptlet(
+                "pre_install_script",
+                load_script_if_path(pre_install_script, parent, cfg.build_target)?,
+            )?;
+
+            if let Some(scriptlet) = scriptlet {
+                builder = builder.pre_install_script(scriptlet);
+            }
         }
+
         if let Some(pre_uninstall_script) = metadata.get_str("pre_uninstall_script")? {
-            builder = builder.pre_uninstall_script(&load_script_if_path(
-                pre_uninstall_script,
-                parent,
-                cfg.build_target,
-            )?);
+            let scriptlet = metadata.get_scriptlet(
+                "pre_uninstall_script",
+                load_script_if_path(pre_uninstall_script, parent, cfg.build_target)?,
+            )?;
+
+            if let Some(scriptlet) = scriptlet {
+                builder = builder.pre_uninstall_script(scriptlet);
+            }
         }
+
         if let Some(post_install_script) = metadata.get_str("post_install_script")? {
-            builder = builder.post_install_script(&load_script_if_path(
-                post_install_script,
-                parent,
-                cfg.build_target,
-            )?);
+            let scriptlet = metadata.get_scriptlet(
+                "post_install_script",
+                load_script_if_path(post_install_script, parent, cfg.build_target)?,
+            )?;
+
+            if let Some(scriptlet) = scriptlet {
+                builder = builder.post_install_script(scriptlet);
+            }
         }
+
         if let Some(post_uninstall_script) = metadata.get_str("post_uninstall_script")? {
-            builder = builder.post_uninstall_script(&load_script_if_path(
-                post_uninstall_script,
-                parent,
-                cfg.build_target,
-            )?);
+            let scriptlet = metadata.get_scriptlet(
+                "post_uninstall_script",
+                load_script_if_path(post_uninstall_script, parent, cfg.build_target)?,
+            )?;
+
+            if let Some(scriptlet) = scriptlet {
+                builder = builder.post_uninstall_script(scriptlet);
+            }
+        }
+
+        if let Some(pre_trans_script) = metadata.get_str("pre_trans_script")? {
+            let scriptlet = metadata.get_scriptlet(
+                "pre_trans_script",
+                load_script_if_path(pre_trans_script, parent, cfg.build_target)?,
+            )?;
+
+            if let Some(scriptlet) = scriptlet {
+                builder = builder.pre_trans_script(scriptlet);
+            }
+        }
+
+        if let Some(post_trans_script) = metadata.get_str("post_trans_script")? {
+            let scriptlet = metadata.get_scriptlet(
+                "post_trans_script",
+                load_script_if_path(post_trans_script, parent, cfg.build_target)?,
+            )?;
+
+            if let Some(scriptlet) = scriptlet {
+                builder = builder.post_trans_script(scriptlet);
+            }
+        }
+
+        if let Some(pre_untrans_script) = metadata.get_str("pre_untrans_script")? {
+            let scriptlet = metadata.get_scriptlet(
+                "pre_untrans_script",
+                load_script_if_path(pre_untrans_script, parent, cfg.build_target)?,
+            )?;
+
+            if let Some(scriptlet) = scriptlet {
+                builder = builder.pre_untrans_script(scriptlet);
+            }
+        }
+
+        if let Some(post_untrans_script) = metadata.get_str("post_untrans_script")? {
+            let scriptlet = metadata.get_scriptlet(
+                "post_untrans_script",
+                load_script_if_path(post_untrans_script, parent, cfg.build_target)?,
+            )?;
+
+            if let Some(scriptlet) = scriptlet {
+                builder = builder.post_untrans_script(scriptlet);
+            }
         }
 
         if let Some(url) = match (
