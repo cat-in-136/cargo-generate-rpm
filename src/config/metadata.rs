@@ -306,10 +306,14 @@ impl<'a> CompoundMetadataConfig<'a> {
         }
         Ok(None)
     }
-    
-    /// Returns a configured scriptlet, 
-    /// 
-    pub(super) fn get_scriptlet(&self, name: &str, content: impl Into<String>) -> Result<Option<Scriptlet>, ConfigError> {
+
+    /// Returns a configured scriptlet,
+    ///
+    pub(super) fn get_scriptlet(
+        &self,
+        name: &str,
+        content: impl Into<String>,
+    ) -> Result<Option<Scriptlet>, ConfigError> {
         let flags_key = format!("{name}_flags");
         let prog_key = format!("{name}_prog");
 
