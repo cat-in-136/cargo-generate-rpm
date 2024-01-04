@@ -57,9 +57,29 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
 * release: optional string of release.
 * epoch: optional number of epoch.
 * pre_install_script: optional string or file path of pre_install_script.
+  * pre_install_script_flags: optional integer value to set scriptlet flags.
+  * pre_install_script_prog: optional string array to set scriptlet interpreter/arguments.
 * pre_uninstall_script: optional string or file path of pre_uninstall_script.
+  * pre_uninstall_script_flags: optional integer value to set scriptlet flags.
+  * pre_uninstall_script_prog: optional string array to set scriptlet interpreter/arguments.
+* pre_trans_script: optional string or file path of pre_trans_script.
+  * pre_trans_script_flags: optional integer value to set scriptlet flags.
+  * pre_trans_script_prog: optional string array to set scriptlet interpreter/arguments.
+* pre_untrans_script: optional string or file path of pre_untrans_script.
+  * pre_untrans_script_flags: optional integer value to set scriptlet flags.
+  * pre_untrans_script_prog: optional string array to set scriptlet interpreter/arguments.
 * post_install_script: optional string or file path of post_install_script.
+  * post_install_script_flags: optional integer value to set scriptlet flags.
+  * post_install_script_prog: optional string array to set scriptlet interpreter/arguments.
 * post_uninstall_script: optional string or file path of post_uninstall_script.
+  * post_uninstall_script_flags: optional integer value to set scriptlet flags.
+  * post_uninstall_script_prog: optional string array to set scriptlet interpreter/arguments.
+* post_trans_script: optional string or file path of post_trans_script.
+  * post_trans_script_flags: optional integer value to set scriptlet flags.
+  * post_trans_script_prog: optional string array to set scriptlet interpreter/arguments.
+* post_untrans_script: optional string or file path of post_untrans_script.
+  * post_untrans_script_flags: optional integer value to set scriptlet flags.
+  * post_untrans_script_prog: optional string array to set scriptlet interpreter/arguments.
 * requires: optional list of Requires
 * auto-req: optional string `"no"` to disable the automatic dependency process
 * require-sh: optional boolean `false` to omit `/bin/sh` from Requirements
@@ -199,3 +219,27 @@ The default payload compress type of the generated RPM file is zstd.
 You can specify the payload compress type with `--payload-compress TYPE`: none, gzip, or zstd.
 
 For the legacy system (e.g. centos7), specify legacy compress type explicitly e.g. `--payload-compress none`.
+
+
+### Scriptlet Flags and Prog Settings
+
+Scriptlet settings can be configured via `*_script_flags` and `*_script_prog` settings.
+
+**Scriptlet Flags** 
+
+| Flag | Setting Value | Description |
+| ---- | ------------- | ----------- |
+| `RPMSCRIPT_FLAG_EXPAND`   | 1 | Enables macro expansion |
+| `RPMSCRIPT_FLAG_QFORMAT`  | 2 | Enables header query format expansion |
+| `RPMSCRIPT_FLAG_CRITICAL` | 4 | Enables critical severity for scriplet success or failure |
+
+**Example**
+
+```toml
+pre_install_scriptlet = """
+echo preinstall
+"""
+pre_install_scriptlet_flags = 0b011 # Enables EXPAND and QFORMAT flags
+pre_install_scriptlet_prog = ["/bin/blah/bash", "-c"] # Sets the interpreter/argument settings for the scriptlet
+```
+

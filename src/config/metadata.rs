@@ -450,4 +450,30 @@ mod test {
         assert_eq!(metadata.get_i64("c").unwrap(), Some(4));
         assert_eq!(metadata.get_i64("not-exist").unwrap(), None);
     }
+
+    #[test]
+    fn test_get_scriptlet_config() {
+        let metadata = toml! {
+            test_script_flags = 0b011
+            test_script_prog = ["/bin/blah/bash", "-c"]
+        };
+
+        let metadata_config = MetadataConfig {
+            metadata: &metadata,
+            branch_path: None,
+        };
+
+        let metadata = CompoundMetadataConfig {
+            config: &[metadata_config],
+        };
+
+        let scriptlet = metadata
+            .get_scriptlet("test_script", "echo hello world")
+            .expect("should be able to parse")
+            .expect("should be valid scriptlet");
+
+        assert_eq!(scriptlet.flags, Some(rpm::ScriptletFlags::EXPAND | rpm::ScriptletFlags::QFORMAT));
+        assert_eq!(scriptlet.program, Some(vec!["/bin/blah/bash".to_string(), "-c".to_string()]));
+        assert_eq!(scriptlet.script.as_str(), "echo hello world");
+    }
 }
