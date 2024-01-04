@@ -236,10 +236,9 @@ Scriptlet settings can be configured via `*_script_flags` and `*_script_prog` se
 **Example**
 
 ```toml
-pre_install_scriptlet = """
+pre_install_script = """
 echo preinstall
 """
-pre_install_scriptlet_flags = 0b011 # Enables EXPAND and QFORMAT flags
-pre_install_scriptlet_prog = ["/bin/blah/bash", "-c"] # Sets the interpreter/argument settings for the scriptlet
+pre_install_script_flags = 0b011 # Enables EXPAND and QFORMAT flags
+pre_install_script_prog = ["/bin/blah/bash", "-c"] # Sets the interpreter/argument settings for the scriptlet
 ```
-

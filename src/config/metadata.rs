@@ -472,8 +472,14 @@ mod test {
             .expect("should be able to parse")
             .expect("should be valid scriptlet");
 
-        assert_eq!(scriptlet.flags, Some(rpm::ScriptletFlags::EXPAND | rpm::ScriptletFlags::QFORMAT));
-        assert_eq!(scriptlet.program, Some(vec!["/bin/blah/bash".to_string(), "-c".to_string()]));
+        assert_eq!(
+            scriptlet.flags,
+            Some(rpm::ScriptletFlags::EXPAND | rpm::ScriptletFlags::QFORMAT)
+        );
+        assert_eq!(
+            scriptlet.program,
+            Some(vec!["/bin/blah/bash".to_string(), "-c".to_string()])
+        );
         assert_eq!(scriptlet.script.as_str(), "echo hello world");
     }
 }
