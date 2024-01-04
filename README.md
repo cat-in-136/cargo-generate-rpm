@@ -227,11 +227,11 @@ Scriptlet settings can be configured via `*_script_flags` and `*_script_prog` se
 
 **Scriptlet Flags** 
 
-| Flag | Setting Value | Description |
-| ---- | ------------- | ----------- |
-| `RPMSCRIPT_FLAG_EXPAND`   | 1 (`0b001`) | Enables macro expansion |
-| `RPMSCRIPT_FLAG_QFORMAT`  | 2 (`0b010`) | Enables header query format expansion |
-| `RPMSCRIPT_FLAG_CRITICAL` | 4 (`0b100`) | Enables critical severity for scriplet success or failure |
+| Flag | Setting Value | Description | Example Usage |
+| ---- | ------------- | ----------- | ------- |
+| `RPMSCRIPT_FLAG_EXPAND`   | 1 | Enables macro expansion | `pre_install_script_flags = 0b001` |
+| `RPMSCRIPT_FLAG_QFORMAT`  | 2 | Enables header query format expansion | `pre_install_script_flags = 0b010` |
+| `RPMSCRIPT_FLAG_CRITICAL` | 4 | Enables critical severity for scriplet success or failure | `pre_install_script_flags = 0b100` |
 
 **Example**
 
