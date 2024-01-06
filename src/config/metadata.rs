@@ -1,6 +1,7 @@
 use crate::error::{ConfigError, FileAnnotatedError};
 use crate::{Error, ExtraMetadataSource};
 use cargo_toml::Manifest;
+use rpm::Scriptlet;
 use std::fs;
 use std::path::PathBuf;
 use toml::value::Table;
@@ -305,6 +306,30 @@ impl<'a> CompoundMetadataConfig<'a> {
         }
         Ok(None)
     }
+
+    /// Returns a configured scriptlet,
+    ///
+    pub(super) fn get_scriptlet(
+        &self,
+        name: &str,
+        content: impl Into<String>,
+    ) -> Result<Option<Scriptlet>, ConfigError> {
+        let flags_key = format!("{name}_flags");
+        let prog_key = format!("{name}_prog");
+
+        let mut scriptlet = Scriptlet::new(content);
+
+        if let Some(flags) = self.get_i64(flags_key.as_str())? {
+            scriptlet = scriptlet.flags(rpm::ScriptletFlags::from_bits_retain(flags as u32));
+        }
+
+        if let Some(prog) = self.get_array(prog_key.as_str())? {
+            let prog = prog.iter().filter_map(|p| p.as_str());
+            scriptlet = scriptlet.prog(prog.collect());
+        }
+
+        Ok(Some(scriptlet))
+    }
 }
 
 impl<'a> TomlValueHelper<'a> for CompoundMetadataConfig<'a> {
@@ -424,5 +449,37 @@ mod test {
         assert_eq!(metadata.get_i64("b").unwrap(), Some(3));
         assert_eq!(metadata.get_i64("c").unwrap(), Some(4));
         assert_eq!(metadata.get_i64("not-exist").unwrap(), None);
+    }
+
+    #[test]
+    fn test_get_scriptlet_config() {
+        let metadata = toml! {
+            test_script_flags = 0b011
+            test_script_prog = ["/bin/blah/bash", "-c"]
+        };
+
+        let metadata_config = MetadataConfig {
+            metadata: &metadata,
+            branch_path: None,
+        };
+
+        let metadata = CompoundMetadataConfig {
+            config: &[metadata_config],
+        };
+
+        let scriptlet = metadata
+            .get_scriptlet("test_script", "echo hello world")
+            .expect("should be able to parse")
+            .expect("should be valid scriptlet");
+
+        assert_eq!(
+            scriptlet.flags,
+            Some(rpm::ScriptletFlags::EXPAND | rpm::ScriptletFlags::QFORMAT)
+        );
+        assert_eq!(
+            scriptlet.program,
+            Some(vec!["/bin/blah/bash".to_string(), "-c".to_string()])
+        );
+        assert_eq!(scriptlet.script.as_str(), "echo hello world");
     }
 }
