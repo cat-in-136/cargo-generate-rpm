@@ -126,9 +126,9 @@ impl ValueEnum for AutoReqMode {
         use AutoReqMode::*;
 
         let val = match self {
-            Disabled => {
-                PossibleValue::new("disabled").help("Disable automatic discovery of dependencies")
-            }
+            Disabled => PossibleValue::new("disabled")
+                .help("Disable automatic discovery of dependencies")
+                .alias("no"),
             Builtin => {
                 PossibleValue::new("builtin").help("Use the builtin procedure based on ldd.")
             }
