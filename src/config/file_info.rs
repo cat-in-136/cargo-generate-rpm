@@ -14,6 +14,7 @@ pub struct FileInfo<'a, 'b, 'c, 'd, 'e> {
     pub group: Option<&'d str>,
     pub mode: Option<usize>,
     pub config: bool,
+    pub config_noreplace: bool,
     pub doc: bool,
     pub caps: Option<&'e str>,
 }
@@ -62,12 +63,18 @@ impl FileInfo<'_, '_, '_, '_, '_> {
             } else {
                 None
             };
-            let config = if let Some(is_config) = table.get("config") {
-                is_config
-                    .as_bool()
-                    .ok_or(ConfigError::AssetFileWrongType(idx, "config", "bool"))?
-            } else {
-                false
+            let (config, config_noreplace, _config_missingok) = match table.get("config") {
+                Some(Value::Boolean(v)) => (v.clone(), false, false),
+                Some(Value::String(v)) if v.eq("noreplace") => (false, true, false),
+                //Some(Value::String(v)) if v.eq("missingok") => (false, false, true),
+                None => (false, false, false),
+                _ => {
+                    return Err(ConfigError::AssetFileWrongType(
+                        idx,
+                        "config",
+                        "bool or \"noreplace\"",
+                    ))
+                } //_ => return Err(ConfigError::AssetFileWrongType(idx, "config", "bool or \"noreplace\" or \"missingok\"")),
             };
             let doc = if let Some(is_doc) = table.get("doc") {
                 is_doc
@@ -84,6 +91,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                 group,
                 mode,
                 config,
+                config_noreplace,
                 doc,
                 caps,
             });
@@ -151,6 +159,9 @@ impl FileInfo<'_, '_, '_, '_, '_> {
         }
         if self.config {
             rpm_file_option = rpm_file_option.is_config();
+        }
+        if self.config_noreplace {
+            rpm_file_option = rpm_file_option.is_no_replace();
         }
         if self.doc {
             rpm_file_option = rpm_file_option.is_doc();
@@ -312,6 +323,7 @@ mod test {
                     group: None,
                     mode: Some(0o0100755),
                     config: false,
+                    config_noreplace: false,
                     doc: false,
                     caps: None,
                 },
@@ -322,6 +334,7 @@ mod test {
                     group: None,
                     mode: Some(0o0100644),
                     config: false,
+                    config_noreplace: false,
                     doc: true,
                     caps: None,
                 },
@@ -332,6 +345,7 @@ mod test {
                     group: None,
                     mode: Some(0o0100644),
                     config: false,
+                    config_noreplace: false,
                     doc: true,
                     caps: None,
                 },
@@ -351,6 +365,7 @@ mod test {
             group: None,
             mode: None,
             config: false,
+            config_noreplace: false,
             doc: true,
             caps: Some("cap_sys_admin=pe"),
         };
@@ -372,6 +387,7 @@ mod test {
             group: None,
             mode: None,
             config: false,
+            config_noreplace: false,
             doc: true,
             caps: None,
         };
@@ -389,6 +405,7 @@ mod test {
             group: None,
             mode: None,
             config: false,
+            config_noreplace: false,
             doc: false,
             caps: None,
         };
@@ -459,6 +476,7 @@ mod test {
             group: None,
             mode: None,
             config: false,
+            config_noreplace: false,
             doc: false,
             caps: None,
         };
