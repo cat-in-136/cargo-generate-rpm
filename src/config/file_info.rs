@@ -64,7 +64,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                 None
             };
             let (config, config_noreplace, _config_missingok) = match table.get("config") {
-                Some(Value::Boolean(v)) => (v.clone(), false, false),
+                Some(Value::Boolean(v)) => (*v, false, false),
                 Some(Value::String(v)) if v.eq("noreplace") => (false, true, false),
                 //Some(Value::String(v)) if v.eq("missingok") => (false, false, true),
                 None => (false, false, false),
