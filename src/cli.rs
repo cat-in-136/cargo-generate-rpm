@@ -33,19 +33,17 @@ pub struct Cli {
     pub package: Option<String>,
 
     /// Automatic dependency processing mode.
-    #[arg(long,
+    #[arg(long, default_value = "auto",
         help = "Automatic dependency processing mode. \
-        [default: auto] \
         [possible values: auto, disabled, builtin, find-requires, /path/to/find-requires]",
         long_help = color_print::cstr!("Automatic dependency processing mode.\n\n\
-        [default: auto]\n\
         Possible values:\n\
-        - <bold>auto</bold>:                   Automatic discovery of dependencies.\n\
-        - <bold>disabled</bold>:               Disable automatic discovery of dependencies. [alias: no]\n\
+        - <bold>auto</bold>:                   Use the preferred automatic dependency process.\n\
+        - <bold>disabled</bold>:               Disable the discovery of dependencies. [alias: no]\n\
         - <bold>builtin</bold>:                Use the builtin procedure based on ldd.\n\
-        - <bold>find-requires</bold>:          Use the external program specified in RPM_FIND_REQUIRES.\n\
+        - <bold>find-requires</bold>:          Use /usr/lib/rpm/find-requires.\n\
         - <bold>/path/to/find-requires</bold>: Use the specified external program."))]
-    pub auto_req: Option<AutoReqMode>,
+    pub auto_req: AutoReqMode,
 
     /// Sub-directory name for all generated artifacts. May be
     /// specified with CARGO_BUILD_TARGET environment
@@ -214,18 +212,18 @@ mod tests {
     #[test]
     fn test_auto_req() {
         let args = Cli::try_parse_from([""]).unwrap();
-        assert_eq!(args.auto_req, None);
+        assert_eq!(args.auto_req, AutoReqMode::Auto);
         let args = Cli::try_parse_from(["", "--auto-req", "auto"]).unwrap();
-        assert_eq!(args.auto_req, Some(AutoReqMode::Auto));
+        assert_eq!(args.auto_req, AutoReqMode::Auto);
         let args = Cli::try_parse_from(["", "--auto-req", "builtin"]).unwrap();
-        assert_eq!(args.auto_req, Some(AutoReqMode::Builtin));
+        assert_eq!(args.auto_req, AutoReqMode::Builtin);
         let args = Cli::try_parse_from(["", "--auto-req", "find-requires"]).unwrap();
-        assert_eq!(args.auto_req, Some(AutoReqMode::FindRequires));
+        assert_eq!(args.auto_req, AutoReqMode::FindRequires);
         let args = Cli::try_parse_from(["", "--auto-req", "/usr/lib/rpm/find-requires"]).unwrap();
         assert!(
-            matches!(args.auto_req, Some(AutoReqMode::Script(v)) if v == PathBuf::from("/usr/lib/rpm/find-requires"))
+            matches!(args.auto_req, AutoReqMode::Script(v) if v == PathBuf::from("/usr/lib/rpm/find-requires"))
         );
         let args = Cli::try_parse_from(["", "--auto-req", "no"]).unwrap();
-        assert_eq!(args.auto_req, Some(AutoReqMode::Disabled));
+        assert_eq!(args.auto_req, AutoReqMode::Disabled);
     }
 }

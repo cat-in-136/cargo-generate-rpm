@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 mod builtin;
 mod script;
 
+/// The path to the system default find-requires program
 const RPM_FIND_REQUIRES: &str = "/usr/lib/rpm/find-requires";
 
 /// The method to auto-req
