@@ -161,4 +161,50 @@ mod tests {
         use clap::CommandFactory;
         Cli::command().debug_assert()
     }
+
+    #[test]
+    fn test_metadata_overwrite() {
+        let args = Cli::try_parse_from([
+            "",
+            "--metadata-overwrite",
+            "TOML_FILE.toml",
+            "--metadata-overwrite",
+            "TOML_FILE.toml#TOML.PATH",
+        ])
+        .unwrap();
+        assert_eq!(
+            args.metadata_overwrite,
+            vec!["TOML_FILE.toml", "TOML_FILE.toml#TOML.PATH"]
+        );
+    }
+
+    #[test]
+    fn test_set_metadata() {
+        let args = Cli::try_parse_from([
+            "",
+            "-s",
+            "toml \"text1\"",
+            "--set-metadata",
+            "toml \"text2\"",
+        ])
+        .unwrap();
+        assert_eq!(
+            args.set_metadata,
+            vec!["TOML_FILE.toml", "TOML_FILE.toml#TOML.PATH"]
+        );
+    }
+
+    #[test]
+    fn test_auto_req() {
+        //let args = Cli::try_parse_from(["", "--auto-req", "auto"]).unwrap();
+        //assert!(matches!(args.auto_req, Some(AutoReqMode::Auto)));
+        let args = Cli::try_parse_from(["", "--auto-req", "builtin"]).unwrap();
+        assert!(matches!(args.auto_req, Some(AutoReqMode::Builtin)));
+        let args = Cli::try_parse_from(["", "--auto-req", "find-requires"]).unwrap();
+        assert!(matches!(args.auto_req, Some(AutoReqMode::FindRequires)));
+        //let args = Cli::try_parse_from(["", "--auto-req", "/usr/lib/rpm/find-requires"]).unwrap();
+        //assert!(matches!(args.auto_req, Some(AutoReqMode::Script(v)) if v.eq("/usr/lib/rpm/find-requires")));
+        let args = Cli::try_parse_from(["", "--auto-req", "no"]).unwrap();
+        assert!(matches!(args.auto_req, Some(AutoReqMode::Disabled)));
+    }
 }
