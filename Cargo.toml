@@ -17,6 +17,7 @@ rpm = { version = "0.13.1", default-features = false }
 toml = "0.7"
 cargo_toml = "0.15"
 clap = { version = "4.3", features = ["derive"] }
+color-print = "0.3"
 thiserror = "1"
 elf = "0.7"
 

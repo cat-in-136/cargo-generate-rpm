@@ -19,17 +19,14 @@ pub enum AutoReqMode {
     BuiltIn,
 }
 
-impl From<&Option<cli::AutoReqMode>> for AutoReqMode {
-    fn from(value: &Option<cli::AutoReqMode>) -> Self {
-        use cli::AutoReqMode as M;
-        use AutoReqMode::*;
-
+impl From<cli::AutoReqMode> for AutoReqMode {
+    fn from(value: cli::AutoReqMode) -> Self {
         match value {
-            None => Auto,
-            Some(M::Disabled) => Disabled,
-            Some(M::Builtin) => BuiltIn,
-            Some(M::Script(path)) => Script(path.into()),
-            Some(M::FindRequires) => Script(PathBuf::from(RPM_FIND_REQUIRES)),
+            cli::AutoReqMode::Auto => AutoReqMode::Auto,
+            cli::AutoReqMode::Disabled => AutoReqMode::Disabled,
+            cli::AutoReqMode::Builtin => AutoReqMode::BuiltIn,
+            cli::AutoReqMode::FindRequires => AutoReqMode::Script(PathBuf::from(RPM_FIND_REQUIRES)),
+            cli::AutoReqMode::Script(path) => AutoReqMode::Script(path),
         }
     }
 }

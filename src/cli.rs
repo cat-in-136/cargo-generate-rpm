@@ -1,4 +1,8 @@
-use clap::{builder::PossibleValue, Parser, ValueEnum};
+use clap::{
+    builder::{PathBufValueParser, PossibleValuesParser, TypedValueParser, ValueParserFactory},
+    Arg, Command, Parser, ValueEnum,
+};
+use std::ffi::OsStr;
 use std::path::PathBuf;
 
 /// Wrapper used when the application is executed as Cargo plugin
@@ -29,7 +33,18 @@ pub struct Cli {
     pub package: Option<String>,
 
     /// Automatic dependency processing mode.
-    #[arg(long)]
+    #[arg(long,
+        help = "Automatic dependency processing mode. \
+        [default: auto] \
+        [possible values: auto, disabled, builtin, find-requires, /path/to/find-requires]",
+        long_help = color_print::cstr!("Automatic dependency processing mode.\n\n\
+        [default: auto]\n\
+        Possible values:\n\
+        - <bold>auto</bold>:                   Automatic discovery of dependencies.\n\
+        - <bold>disabled</bold>:               Disable automatic discovery of dependencies. [alias: no]\n\
+        - <bold>builtin</bold>:                Use the builtin procedure based on ldd.\n\
+        - <bold>find-requires</bold>:          Use the external program specified in RPM_FIND_REQUIRES.\n\
+        - <bold>/path/to/find-requires</bold>: Use the specified external program."))]
     pub auto_req: Option<AutoReqMode>,
 
     /// Sub-directory name for all generated artifacts. May be
@@ -102,54 +117,59 @@ impl From<Compression> for rpm::CompressionWithLevel {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AutoReqMode {
+    Auto,
     Disabled,
     Builtin,
     FindRequires,
-    Script(String),
+    Script(PathBuf),
 }
 
-static AUTO_REQ_VARIANTS: &[AutoReqMode] = &[
-    AutoReqMode::Disabled,
-    AutoReqMode::Builtin,
-    AutoReqMode::FindRequires,
-    AutoReqMode::Script(String::new()),
-];
+impl ValueParserFactory for AutoReqMode {
+    type Parser = AutoReqModeParser;
 
-impl ValueEnum for AutoReqMode {
-    fn value_variants<'a>() -> &'a [Self] {
-        AUTO_REQ_VARIANTS
+    fn value_parser() -> Self::Parser {
+        AutoReqModeParser
     }
+}
 
-    fn to_possible_value(&self) -> Option<PossibleValue> {
-        use AutoReqMode::*;
+#[derive(Clone, Debug)]
+pub struct AutoReqModeParser;
 
-        let val = match self {
-            Disabled => PossibleValue::new("disabled")
-                .help("Disable automatic discovery of dependencies")
-                .alias("no"),
-            Builtin => {
-                PossibleValue::new("builtin").help("Use the builtin procedure based on ldd.")
+impl TypedValueParser for AutoReqModeParser {
+    type Value = AutoReqMode;
+    fn parse_ref(
+        &self,
+        cmd: &Command,
+        arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        const VALUES: [(&str, AutoReqMode); 5] = [
+            ("auto", AutoReqMode::Auto),
+            ("disabled", AutoReqMode::Disabled),
+            ("no", AutoReqMode::Disabled),
+            ("builtin", AutoReqMode::Builtin),
+            ("find-requires", AutoReqMode::FindRequires),
+        ];
+
+        let inner = PossibleValuesParser::new(VALUES.iter().map(|(k, _v)| k));
+        match inner.parse_ref(cmd, arg, value) {
+            Ok(name) => Ok(VALUES
+                .iter()
+                .find(|(k, _v)| name.as_str() == (k.as_ref() as &str))
+                .unwrap()
+                .1
+                .clone()),
+            Err(e) if e.kind() == clap::error::ErrorKind::InvalidValue => {
+                let inner = PathBufValueParser::new();
+                match inner.parse_ref(cmd, arg, value) {
+                    Ok(v) => Ok(AutoReqMode::Script(v)),
+                    Err(e) => Err(e),
+                }
             }
-            FindRequires => PossibleValue::new("find-requires")
-                .help("Use the external program specified in RPM_FIND_REQUIRES."),
-            _ => PossibleValue::new("/path/to/find-requires")
-                .help("Use the specified external program."),
-        };
-        Some(val)
-    }
-
-    // Provided method
-    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
-        let lowercase = String::from(input).to_lowercase();
-        let val = if ignore_case { &lowercase } else { input };
-        Ok(match val {
-            "disabled" => Self::Disabled,
-            "builtin" => Self::Builtin,
-            "find-requires" => Self::FindRequires,
-            _ => Self::Script(input.into()),
-        })
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -188,23 +208,24 @@ mod tests {
             "toml \"text2\"",
         ])
         .unwrap();
-        assert_eq!(
-            args.set_metadata,
-            vec!["TOML_FILE.toml", "TOML_FILE.toml#TOML.PATH"]
-        );
+        assert_eq!(args.set_metadata, vec!["toml \"text1\"", "toml \"text2\""]);
     }
 
     #[test]
     fn test_auto_req() {
-        //let args = Cli::try_parse_from(["", "--auto-req", "auto"]).unwrap();
-        //assert!(matches!(args.auto_req, Some(AutoReqMode::Auto)));
+        let args = Cli::try_parse_from([""]).unwrap();
+        assert_eq!(args.auto_req, None);
+        let args = Cli::try_parse_from(["", "--auto-req", "auto"]).unwrap();
+        assert_eq!(args.auto_req, Some(AutoReqMode::Auto));
         let args = Cli::try_parse_from(["", "--auto-req", "builtin"]).unwrap();
-        assert!(matches!(args.auto_req, Some(AutoReqMode::Builtin)));
+        assert_eq!(args.auto_req, Some(AutoReqMode::Builtin));
         let args = Cli::try_parse_from(["", "--auto-req", "find-requires"]).unwrap();
-        assert!(matches!(args.auto_req, Some(AutoReqMode::FindRequires)));
-        //let args = Cli::try_parse_from(["", "--auto-req", "/usr/lib/rpm/find-requires"]).unwrap();
-        //assert!(matches!(args.auto_req, Some(AutoReqMode::Script(v)) if v.eq("/usr/lib/rpm/find-requires")));
+        assert_eq!(args.auto_req, Some(AutoReqMode::FindRequires));
+        let args = Cli::try_parse_from(["", "--auto-req", "/usr/lib/rpm/find-requires"]).unwrap();
+        assert!(
+            matches!(args.auto_req, Some(AutoReqMode::Script(v)) if v == PathBuf::from("/usr/lib/rpm/find-requires"))
+        );
         let args = Cli::try_parse_from(["", "--auto-req", "no"]).unwrap();
-        assert!(matches!(args.auto_req, Some(AutoReqMode::Disabled)));
+        assert_eq!(args.auto_req, Some(AutoReqMode::Disabled));
     }
 }
