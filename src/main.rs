@@ -1,6 +1,5 @@
 use crate::{build_target::BuildTarget, config::BuilderConfig};
-use clap::Parser;
-use cli::{CargoWrapper, Cli};
+use cli::Cli;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -54,13 +53,7 @@ fn determine_output_dir(
 }
 
 fn run() -> Result<(), Error> {
-    let mut args = std::env::args();
-    let args = if let Some("generate-rpm") = args.nth(1).as_deref() {
-        let CargoWrapper::GenerateRpm(args) = CargoWrapper::parse();
-        args
-    } else {
-        Cli::parse()
-    };
+    let (args, matcher) = Cli::get_matches_and_try_parse().unwrap_or_else(|e| e.exit());
 
     let build_target = BuildTarget::new(&args);
     let extra_metadata = collect_metadata(&args);

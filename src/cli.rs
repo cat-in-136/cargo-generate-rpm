@@ -1,6 +1,6 @@
 use clap::{
     builder::{PathBufValueParser, PossibleValuesParser, TypedValueParser, ValueParserFactory},
-    Arg, Command, Parser, ValueEnum,
+    Arg, ArgMatches, Command, CommandFactory, FromArgMatches, Parser, ValueEnum,
 };
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -9,7 +9,7 @@ use std::path::PathBuf;
 #[derive(Debug, Parser)]
 #[command(name = "cargo")]
 #[command(bin_name = "cargo")]
-pub enum CargoWrapper {
+enum CargoWrapper {
     GenerateRpm(Cli),
 }
 
@@ -86,6 +86,20 @@ pub struct Cli {
     /// Shortcut to --metadata-overwrite=path/to/Cargo.toml#package.metadata.generate-rpm.variants.VARIANT
     #[arg(long, value_delimiter = ',')]
     pub variant: Vec<String>,
+}
+
+impl Cli {
+    pub fn get_matches_and_try_parse() -> Result<(Self, ArgMatches), clap::Error> {
+        let mut args = std::env::args();
+        let mut matches = if let Some("generate-rpm") = args.nth(1).as_deref() {
+            <CargoWrapper as CommandFactory>::command().get_matches()
+        } else {
+            <Self as CommandFactory>::command().get_matches()
+        };
+        let arg = Self::from_arg_matches_mut(&mut matches)?;
+
+        Ok((arg, matches))
+    }
 }
 
 impl Default for Cli {
@@ -176,8 +190,12 @@ mod tests {
     use super::*;
     #[test]
     fn verify_cli() {
-        use clap::CommandFactory;
-        Cli::command().debug_assert()
+        <Cli as CommandFactory>::command().debug_assert()
+    }
+
+    #[test]
+    fn verify_cargo_wrapper() {
+        <CargoWrapper as CommandFactory>::command().debug_assert()
     }
 
     #[test]
