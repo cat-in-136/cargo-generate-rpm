@@ -1,5 +1,6 @@
+use crate::cli::ExtraMetadataSource;
 use crate::error::{ConfigError, FileAnnotatedError};
-use crate::{Error, ExtraMetadataSource};
+use crate::Error;
 use cargo_toml::Manifest;
 use rpm::Scriptlet;
 use std::fs;
@@ -131,6 +132,7 @@ impl ExtraMetaData {
                     .map_err(|e| FileAnnotatedError(annot, e))?;
                 Ok(Self(table.clone(), source.clone()))
             }
+            ExtraMetadataSource::Variant(_) => todo!(),
         }
     }
 
