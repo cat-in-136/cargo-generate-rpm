@@ -112,7 +112,10 @@ pub(crate) trait TomlValueHelper<'a> {
 pub(super) struct ExtraMetaData(Table, ExtraMetadataSource);
 
 impl ExtraMetaData {
-    pub(super) fn new(source: &ExtraMetadataSource) -> Result<Self, Error> {
+    pub(super) fn new(
+        source: &ExtraMetadataSource,
+        package_manifest: &PathBuf,
+    ) -> Result<Self, Error> {
         match source {
             ExtraMetadataSource::File(p, branch) => {
                 let annot: Option<PathBuf> = Some(p.clone());
@@ -132,7 +135,16 @@ impl ExtraMetaData {
                     .map_err(|e| FileAnnotatedError(annot, e))?;
                 Ok(Self(table.clone(), source.clone()))
             }
-            ExtraMetadataSource::Variant(_) => todo!(),
+            ExtraMetadataSource::Variant(variant) => {
+                let annot: Option<PathBuf> = Some(package_manifest.clone());
+                let toml = fs::read_to_string(package_manifest)?
+                    .parse::<Value>()
+                    .map_err(|e| FileAnnotatedError(annot.clone(), e))?;
+                let branch = format!("package.metadata.generate-rpm.variants.{variant}");
+                let table = Self::convert_toml_txt_to_table(&toml, &Some(branch))
+                    .map_err(|e| FileAnnotatedError(annot, e))?;
+                Ok(Self(table.clone(), source.clone()))
+            }
         }
     }
 

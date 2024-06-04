@@ -38,7 +38,7 @@ impl Config {
     pub fn new(
         project_base_path: &Path,
         workspace_base_path: Option<&Path>,
-        extra_metadata: &[ExtraMetadataSource],
+        extra_metadata_src: &[ExtraMetadataSource],
     ) -> Result<Self, Error> {
         let manifest_path = Self::create_cargo_toml_path(project_base_path);
 
@@ -72,9 +72,9 @@ impl Config {
             })?
         };
 
-        let extra_metadata = extra_metadata
+        let extra_metadata = extra_metadata_src
             .iter()
-            .map(ExtraMetaData::new)
+            .map(|v| ExtraMetaData::new(v, &manifest_path))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Config {
