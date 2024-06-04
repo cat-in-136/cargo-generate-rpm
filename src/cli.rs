@@ -80,7 +80,7 @@ pub struct Cli {
     pub metadata_overwrite: Vec<String>,
 
     /// Overwrite metadata with TOML text.
-    #[arg(short, long, value_delimiter = ',')]
+    #[arg(short, long)]
     pub set_metadata: Vec<String>,
 
     /// Shortcut to --metadata-overwrite=path/to/Cargo.toml#package.metadata.generate-rpm.variants.VARIANT
