@@ -302,8 +302,8 @@ impl Config {
 
         let meta_aut_req = metadata.get_str("auto-req")?;
         let auto_req = match (&cfg.args.auto_req, meta_aut_req) {
-            (None, Some("no" | "disabled")) => AutoReqMode::Disabled,
-            (r, _) => r.into(),
+            (crate::cli::AutoReqMode::Auto, Some("no" | "disabled")) => AutoReqMode::Disabled,
+            (v, _) => AutoReqMode::from(v.clone()),
         };
 
         for requires in find_requires(expanded_file_paths, auto_req)? {

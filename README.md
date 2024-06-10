@@ -131,17 +131,17 @@ It is necessary to place a space between version and symbols such as `<`, `<=`, 
 
 This command automatically determines what shared libraries a package requires.
 There may be times when the automatic dependency processing is not desired.
-In this case, the package author may set `package.metadata.generate-rpm.auto-req` to `"no"` or
-the user who executes this command may specify command line option `--auto-req no`.
+The packege author and users can configure the processing.
 
-* `--auto-req auto`: The following rules are used to determine the preferred automatic dependency process:
+* `--auto-req auto` or `--auto-req` not specified: Use the preferred automatic dependency process.
+  The following rules are used:
     * If `package.metadata.generate-rpm.auto-req` set to `"no"` or `"disabled"`, the process is disabled.
-    * If `/usr/lib/rpm/find-requires` exists, it is used (same behaviour as `--auto-req /usr/lib/rpm/find-requires`).
+    * If `/usr/lib/rpm/find-requires` exists, it is used (same behaviour as `--auto-req find-requires`).
     * Otherwise, builtin procedure is used (same behaviour as `--auto-req builtin`).
-* `--auto-req builtin`: the builtin procedure using `ldd` is used.
-* `--auto-req /path/to/find-requires`: the specified external program is used. This behavior is the same as the
-  original `rpmbuild`.
-* `--auto-req no`: the process is disabled.
+* `--auto-req disabled`, `--auto-req no`: Disable the discovery of dependencies.
+* `--auto-req builtin`: Use the builtin procedure based on `ldd`.
+* `--auto-req find-requires`: Use `/usr/lib/rpm/find-requires`. This behavior is the same as the original `rpmbuild`.
+* `--auto-req /path/to/find-requires`: Use the specified external program is used.
 
 `/bin/sh` is always added to the package requirements. To disable it, set `package.metadata.generate-rpm.require-sh`
 to `false`. You should not do this if you use scripts such as `pre_install_script` or if your assets contain shell
