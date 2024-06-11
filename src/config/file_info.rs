@@ -161,7 +161,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
             rpm_file_option = rpm_file_option.is_config();
         }
         if self.config_noreplace {
-            rpm_file_option = rpm_file_option.is_no_replace();
+            rpm_file_option = rpm_file_option.is_config_noreplace();
         }
         if self.doc {
             rpm_file_option = rpm_file_option.is_doc();
