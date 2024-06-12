@@ -1,15 +1,15 @@
 use clap::{
     builder::{PathBufValueParser, PossibleValuesParser, TypedValueParser, ValueParserFactory},
-    Arg, Command, Parser, ValueEnum,
+    Arg, ArgMatches, Command, CommandFactory, FromArgMatches, Parser, ValueEnum,
 };
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
 /// Wrapper used when the application is executed as Cargo plugin
 #[derive(Debug, Parser)]
 #[command(name = "cargo")]
 #[command(bin_name = "cargo")]
-pub enum CargoWrapper {
+enum CargoWrapper {
     GenerateRpm(Cli),
 }
 
@@ -80,12 +80,69 @@ pub struct Cli {
     pub metadata_overwrite: Vec<String>,
 
     /// Overwrite metadata with TOML text.
-    #[arg(short, long, value_delimiter = ',')]
+    #[arg(short, long)]
     pub set_metadata: Vec<String>,
 
     /// Shortcut to --metadata-overwrite=path/to/Cargo.toml#package.metadata.generate-rpm.variants.VARIANT
     #[arg(long, value_delimiter = ',')]
     pub variant: Vec<String>,
+}
+
+impl Cli {
+    #[inline]
+    fn get_matches_and_try_parse_from<F, I, T>(
+        args_fn: F,
+    ) -> Result<(Self, ArgMatches), clap::Error>
+    where
+        F: Fn() -> I,
+        I: IntoIterator<Item = T> + Iterator<Item = OsString>,
+        T: Into<OsString> + Clone,
+    {
+        let mut args = args_fn();
+        let matches = if args.nth(1) == Some(OsString::from("generate-rpm")) {
+            let args = args_fn();
+            <CargoWrapper as CommandFactory>::command().get_matches_from(args)
+        } else {
+            let args = args_fn();
+            <Self as CommandFactory>::command().get_matches_from(args)
+        };
+        let arg = Self::from_arg_matches_mut(&mut matches.clone())?;
+
+        Ok((arg, matches))
+    }
+
+    pub fn get_matches_and_try_parse() -> Result<(Self, ArgMatches), clap::Error> {
+        Self::get_matches_and_try_parse_from(&std::env::args_os)
+    }
+
+    pub fn extra_metadata(&self, matches: &ArgMatches) -> Vec<ExtraMetadataSource> {
+        let mut extra_metadata_args = Vec::new();
+
+        if let Some(indices) = matches.indices_of("metadata_overwrite") {
+            for (v, i) in self.metadata_overwrite.iter().zip(indices) {
+                let (file, branch) = match v.split_once('#') {
+                    None => (PathBuf::from(v), None),
+                    Some((file, branch)) => (PathBuf::from(file), Some(branch.to_string())),
+                };
+                extra_metadata_args.push((i, ExtraMetadataSource::File(file, branch)));
+            }
+        }
+
+        if let Some(indices) = matches.indices_of("set_metadata") {
+            for (v, i) in self.set_metadata.iter().zip(indices) {
+                extra_metadata_args.push((i, ExtraMetadataSource::Text(v.to_string())));
+            }
+        }
+
+        if let Some(indices) = matches.indices_of("variant") {
+            for (v, i) in self.variant.iter().zip(indices) {
+                extra_metadata_args.push((i, ExtraMetadataSource::Variant(v.to_string())));
+            }
+        }
+
+        extra_metadata_args.sort_by_key(|v| v.0);
+        extra_metadata_args.drain(..).map(|v| v.1).collect()
+    }
 }
 
 impl Default for Cli {
@@ -171,13 +228,49 @@ impl TypedValueParser for AutoReqModeParser {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExtraMetadataSource {
+    File(PathBuf, Option<String>),
+    Text(String),
+    Variant(String),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn verify_cli() {
-        use clap::CommandFactory;
-        Cli::command().debug_assert()
+        <Cli as CommandFactory>::command().debug_assert()
+    }
+
+    #[test]
+    fn verify_cargo_wrapper() {
+        <CargoWrapper as CommandFactory>::command().debug_assert()
+    }
+
+    #[test]
+    fn test_get_matches_and_try_parse_from() {
+        let (args, matcher) = Cli::get_matches_and_try_parse_from(|| {
+            ["", "-o", "/dev/null"].map(&OsString::from).into_iter()
+        })
+        .unwrap();
+        assert_eq!(args.output, Some(PathBuf::from("/dev/null")));
+        assert_eq!(
+            matcher.indices_of("output").unwrap().collect::<Vec<_>>(),
+            &[2]
+        );
+
+        let (args, matcher) = Cli::get_matches_and_try_parse_from(|| {
+            ["generate-rpm", "-o", "/dev/null"]
+                .map(&OsString::from)
+                .into_iter()
+        })
+        .unwrap();
+        assert_eq!(args.output, Some(PathBuf::from("/dev/null")));
+        assert_eq!(
+            matcher.indices_of("output").unwrap().collect::<Vec<_>>(),
+            &[2]
+        );
     }
 
     #[test]
@@ -207,6 +300,51 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.set_metadata, vec!["toml \"text1\"", "toml \"text2\""]);
+    }
+
+    #[test]
+    fn test_extrametadata() {
+        let (args, matches) = Cli::get_matches_and_try_parse_from(|| {
+            [
+                "",
+                "--metadata-overwrite",
+                "TOML_FILE1.toml",
+                "-s",
+                "toml \"text1\"",
+                "--metadata-overwrite",
+                "TOML_FILE2.toml#TOML.PATH",
+                "--variant",
+                "VARIANT1,VARIANT2",
+                "--set-metadata",
+                "toml \"text2\"",
+                "--metadata-overwrite",
+                "TOML_FILE3.toml#TOML.PATH,TOML_FILE4.toml",
+            ]
+            .map(&OsString::from)
+            .into_iter()
+        })
+        .unwrap();
+
+        let metadata = args.extra_metadata(&matches);
+        assert_eq!(
+            metadata,
+            vec![
+                ExtraMetadataSource::File(PathBuf::from("TOML_FILE1.toml"), None),
+                ExtraMetadataSource::Text(String::from("toml \"text1\"")),
+                ExtraMetadataSource::File(
+                    PathBuf::from("TOML_FILE2.toml"),
+                    Some(String::from("TOML.PATH"))
+                ),
+                ExtraMetadataSource::Variant(String::from("VARIANT1")),
+                ExtraMetadataSource::Variant(String::from("VARIANT2")),
+                ExtraMetadataSource::Text(String::from("toml \"text2\"")),
+                ExtraMetadataSource::File(
+                    PathBuf::from("TOML_FILE3.toml"),
+                    Some(String::from("TOML.PATH"))
+                ),
+                ExtraMetadataSource::File(PathBuf::from("TOML_FILE4.toml"), None),
+            ]
+        );
     }
 
     #[test]

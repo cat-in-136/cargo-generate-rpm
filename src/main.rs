@@ -1,6 +1,5 @@
 use crate::{build_target::BuildTarget, config::BuilderConfig};
-use clap::Parser;
-use cli::{CargoWrapper, Cli};
+use cli::Cli;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -12,34 +11,8 @@ mod cli;
 mod config;
 mod error;
 
-use config::{Config, ExtraMetadataSource};
+use config::Config;
 use error::Error;
-
-fn collect_metadata(args: &Cli) -> Vec<config::ExtraMetadataSource> {
-    args.metadata_overwrite
-        .iter()
-        .map(|v| {
-            let (file, branch) = match v.split_once('#') {
-                None => (PathBuf::from(v), None),
-                Some((file, branch)) => (PathBuf::from(file), Some(branch.to_string())),
-            };
-            ExtraMetadataSource::File(file, branch)
-        })
-        .chain(
-            args.set_metadata
-                .iter()
-                .map(|v| ExtraMetadataSource::Text(v.to_string())),
-        )
-        .chain(args.variant.iter().map(|v| {
-            let file = match &args.package {
-                Some(package) => Config::create_cargo_toml_path(package),
-                None => Config::create_cargo_toml_path(""),
-            };
-            let branch = String::from("package.metadata.generate-rpm.variants.") + v;
-            ExtraMetadataSource::File(file, Some(branch))
-        }))
-        .collect::<Vec<_>>()
-}
 
 fn determine_output_dir(
     output: Option<&PathBuf>,
@@ -54,16 +27,10 @@ fn determine_output_dir(
 }
 
 fn run() -> Result<(), Error> {
-    let mut args = std::env::args();
-    let args = if let Some("generate-rpm") = args.nth(1).as_deref() {
-        let CargoWrapper::GenerateRpm(args) = CargoWrapper::parse();
-        args
-    } else {
-        Cli::parse()
-    };
+    let (args, matches) = Cli::get_matches_and_try_parse().unwrap_or_else(|e| e.exit());
 
     let build_target = BuildTarget::new(&args);
-    let extra_metadata = collect_metadata(&args);
+    let extra_metadata = args.extra_metadata(&matches);
 
     let config = if let Some(p) = &args.package {
         Config::new(Path::new(p), Some(Path::new("")), &extra_metadata)?

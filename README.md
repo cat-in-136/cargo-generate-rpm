@@ -152,11 +152,12 @@ scripts.
 `[package.metadata.generate-rpm]` can be overwritten. The following command line options are used:
 
 * `--metadata-overwrite=TOML_FILE.toml` : Overwrite the `[package.metadata.generate-rpm]` options with the contents of
-  the specified TOML file.
+  the specified TOML file. Multiple files can be specified, separated by commas.
 * `--metadata-overwrite=TOML_FILE.toml#TOML.PATH` : Overwrites the `[package.metadata.generate-rpm]` options with the
   table specified in the TOML path of the TOML file.
   Only a sequence of bare keys connected by dots is acceptable for the TOML path.
   Path containing quoted keys (such as `metadata."παραλλαγή"`) cannot be acceptable.
+  Multiple files with TOML pathes can be specified, separated by commas.
 * `-s 'toml "text"'` or `--set-metadata='toml "text"'` : Overwrite the `[package.metadata.generate-rpm]` options with
   inline TOML text.
   The argument text --- inline TOML text must be enclosed in quotation marks since it contains spaces.
@@ -165,10 +166,11 @@ scripts.
   It is a shortcut to `--metadata-overwrite=path/to/Cargo.toml#package.metadata.generate-rpm.variants.VARIANT`.
   It is intended for providing multiple variants of the metadata in a Cargo.toml and ability for the users to select the
   variant using --variant=name option.
+  Multiple variant names can be specified, separated by commas.
 
-These options can be specified more than once, with the last written one specified being applied.
-For example, the arguments -s 'release = "alpha"' `--metadata-overwrite=beta.toml` where beta.toml
-contains `release = "beta"` gives `release = "beta"`.
+These options may be specified multiple times, with the last one written being applied regardless of the kind of option.
+For example, the arguments `-s 'release = "alpha"' --metadata-overwrite=beta.toml` where beta.toml
+contains `release = "beta"`, then gives `release = "beta"`.
 
 ## Advanced Usage
 
