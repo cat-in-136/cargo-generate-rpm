@@ -302,7 +302,7 @@ mod test {
 
     #[test]
     fn test_new() {
-        let manifest = Manifest::from_path("Cargo.toml").unwrap();
+        let manifest = Manifest::from_path("./Cargo.toml").unwrap();
         let metadata = manifest.package.unwrap().metadata.unwrap();
         let metadata = metadata
             .as_table()
