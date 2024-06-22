@@ -9,6 +9,9 @@ using the [`rpm`](https://crates.io/crates/rpm) crate.
 ![Rust](https://github.com/cat-in-136/cargo-generate-rpm/workflows/Rust/badge.svg)
 [![cargo-generate-rpm at crates.io](https://img.shields.io/crates/v/cargo-generate-rpm.svg)](https://crates.io/crates/cargo-generate-rpm)
 
+Legacy systems requiring RPMv3 (e.g. CentOS 7) are no longer supported due to rpm-rs compatibility.
+Use versions prior to 0.15 for such a system.
+
 ## Install
 
 ```sh
@@ -221,9 +224,6 @@ Similarly, if using a custom build profile with, for example, `--profile custom`
 
 The default payload compress type of the generated RPM file is zstd.
 You can specify the payload compress type with `--payload-compress TYPE`: none, gzip, or zstd.
-
-For the legacy system (e.g. centos7), specify legacy compress type explicitly e.g. `--payload-compress none`.
-
 
 ### Scriptlet Flags and Prog Settings
 
