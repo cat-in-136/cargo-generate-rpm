@@ -319,6 +319,26 @@ impl Config {
                 builder = builder.provides(dependency);
             }
         }
+        if let Some(recommends) = metadata.get_table("recommends")? {
+            for dependency in Self::table_to_dependencies(recommends)? {
+                builder = builder.recommends(dependency);
+            }
+        }
+        if let Some(supplements) = metadata.get_table("supplements")? {
+            for dependency in Self::table_to_dependencies(supplements)? {
+                builder = builder.supplements(dependency);
+            }
+        }
+        if let Some(suggests) = metadata.get_table("suggests")? {
+            for dependency in Self::table_to_dependencies(suggests)? {
+                builder = builder.suggests(dependency);
+            }
+        }
+        if let Some(enhances) = metadata.get_table("enhances")? {
+            for dependency in Self::table_to_dependencies(enhances)? {
+                builder = builder.enhances(dependency);
+            }
+        }
 
         Ok(builder)
     }

@@ -91,6 +91,10 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
 * obsoletes: optional list of Obsoletes
 * conflicts: optional list of Conflicts
 * provides: optional list of Provides
+* recommends: optional list of Recommends
+* supplements: optional list of Supplements
+* suggests: optional list of Suggests
+* enhances: optional list of Enhances
 * vendor: optional string of Vendor
 
 Adding assets such as the binary file, ``.desktop`` file, or icons, shall be written in the following way.
