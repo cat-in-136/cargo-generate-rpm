@@ -112,7 +112,7 @@ impl Cli {
     }
 
     pub fn get_matches_and_try_parse() -> Result<(Self, ArgMatches), clap::Error> {
-        Self::get_matches_and_try_parse_from(&std::env::args_os)
+        Self::get_matches_and_try_parse_from(std::env::args_os)
     }
 
     pub fn extra_metadata(&self, matches: &ArgMatches) -> Vec<ExtraMetadataSource> {
@@ -210,12 +210,7 @@ impl TypedValueParser for AutoReqModeParser {
 
         let inner = PossibleValuesParser::new(VALUES.iter().map(|(k, _v)| k));
         match inner.parse_ref(cmd, arg, value) {
-            Ok(name) => Ok(VALUES
-                .iter()
-                .find(|(k, _v)| name.as_str() == (k.as_ref() as &str))
-                .unwrap()
-                .1
-                .clone()),
+            Ok(name) => Ok(VALUES.iter().find(|(k, _v)| name.eq(k)).unwrap().1.clone()),
             Err(e) if e.kind() == clap::error::ErrorKind::InvalidValue => {
                 let inner = PathBufValueParser::new();
                 match inner.parse_ref(cmd, arg, value) {

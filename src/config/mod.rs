@@ -86,7 +86,7 @@ impl Config {
 
     pub(crate) fn create_cargo_toml_path<P: AsRef<Path>>(base_path: P) -> Result<PathBuf, Error> {
         let path = base_path.as_ref().join("Cargo.toml");
-        path.canonicalize().or_else(|e| Err(Error::FileIo(path, e)))
+        path.canonicalize().map_err(|e| Error::FileIo(path, e))
     }
 
     fn table_to_dependencies(table: &Table) -> Result<Vec<Dependency>, ConfigError> {
