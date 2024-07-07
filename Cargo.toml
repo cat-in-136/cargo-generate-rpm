@@ -8,7 +8,7 @@ homepage = "https://github.com/cat-in-136/cargo-generate-rpm"
 readme = "README.md"
 keywords = ["rpm", "package", "cargo", "subcommand"]
 repository = "https://github.com/cat-in-136/cargo-generate-rpm"
-version = "0.14.1"
+version = "0.15.0"
 edition = "2021"
 
 [dependencies]
