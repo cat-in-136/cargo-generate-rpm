@@ -71,6 +71,7 @@ pub enum Error {
     #[error(transparent)]
     Config(#[from] ConfigError),
     #[error("Invalid value of enviroment variable {0}: {1}")]
+    #[allow(clippy::enum_variant_names)] // Allow bad terminology for compatibility
     EnvError(&'static str, String),
     #[error(transparent)]
     ParseTomlFile(#[from] FileAnnotatedError<TomlDeError>),

@@ -9,6 +9,9 @@ using the [`rpm`](https://crates.io/crates/rpm) crate.
 ![Rust](https://github.com/cat-in-136/cargo-generate-rpm/workflows/Rust/badge.svg)
 [![cargo-generate-rpm at crates.io](https://img.shields.io/crates/v/cargo-generate-rpm.svg)](https://crates.io/crates/cargo-generate-rpm)
 
+Legacy systems requiring RPMv3 (e.g. CentOS 7) are no longer supported due to rpm-rs compatibility.
+Use versions prior to 0.15 for such a system.
+
 ## Install
 
 ```sh
@@ -27,7 +30,7 @@ Upon run `cargo generate-rpm` on your cargo project, a binary RPM package file w
 in `target/generate-rpm/XXX.rpm`.
 You can change the RPM package file location using `-o` option.
 
-In advance, run `cargo run --release` and strip the debug symbols (`strip -s target/release/XXX`), because these are not
+In advance, run `cargo build --release` and strip the debug symbols (`strip -s target/release/XXX`), because these are not
 run upon `cargo generate-rpm` as of now.
 
 ## Configuration
@@ -88,6 +91,10 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
 * obsoletes: optional list of Obsoletes
 * conflicts: optional list of Conflicts
 * provides: optional list of Provides
+* recommends: optional list of Recommends
+* supplements: optional list of Supplements
+* suggests: optional list of Suggests
+* enhances: optional list of Enhances
 * vendor: optional string of Vendor
 
 Adding assets such as the binary file, ``.desktop`` file, or icons, shall be written in the following way.
@@ -152,11 +159,12 @@ scripts.
 `[package.metadata.generate-rpm]` can be overwritten. The following command line options are used:
 
 * `--metadata-overwrite=TOML_FILE.toml` : Overwrite the `[package.metadata.generate-rpm]` options with the contents of
-  the specified TOML file.
+  the specified TOML file. Multiple files can be specified, separated by commas.
 * `--metadata-overwrite=TOML_FILE.toml#TOML.PATH` : Overwrites the `[package.metadata.generate-rpm]` options with the
   table specified in the TOML path of the TOML file.
   Only a sequence of bare keys connected by dots is acceptable for the TOML path.
   Path containing quoted keys (such as `metadata."παραλλαγή"`) cannot be acceptable.
+  Multiple files with TOML pathes can be specified, separated by commas.
 * `-s 'toml "text"'` or `--set-metadata='toml "text"'` : Overwrite the `[package.metadata.generate-rpm]` options with
   inline TOML text.
   The argument text --- inline TOML text must be enclosed in quotation marks since it contains spaces.
@@ -165,10 +173,11 @@ scripts.
   It is a shortcut to `--metadata-overwrite=path/to/Cargo.toml#package.metadata.generate-rpm.variants.VARIANT`.
   It is intended for providing multiple variants of the metadata in a Cargo.toml and ability for the users to select the
   variant using --variant=name option.
+  Multiple variant names can be specified, separated by commas.
 
-These options can be specified more than once, with the last written one specified being applied.
-For example, the arguments -s 'release = "alpha"' `--metadata-overwrite=beta.toml` where beta.toml
-contains `release = "beta"` gives `release = "beta"`.
+These options may be specified multiple times, with the last one written being applied regardless of the kind of option.
+For example, the arguments `-s 'release = "alpha"' --metadata-overwrite=beta.toml` where beta.toml
+contains `release = "beta"`, then gives `release = "beta"`.
 
 ## Advanced Usage
 
@@ -219,9 +228,6 @@ Similarly, if using a custom build profile with, for example, `--profile custom`
 
 The default payload compress type of the generated RPM file is zstd.
 You can specify the payload compress type with `--payload-compress TYPE`: none, gzip, or zstd.
-
-For the legacy system (e.g. centos7), specify legacy compress type explicitly e.g. `--payload-compress none`.
-
 
 ### Scriptlet Flags and Prog Settings
 

@@ -7,19 +7,13 @@ use toml::value::Table;
 
 use crate::auto_req::{find_requires, AutoReqMode};
 use crate::build_target::BuildTarget;
-use crate::cli::Cli;
+use crate::cli::{Cli, ExtraMetadataSource};
 use crate::error::{ConfigError, Error};
 use file_info::FileInfo;
 use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueHelper};
 
 mod file_info;
 mod metadata;
-
-#[derive(Debug, Clone)]
-pub enum ExtraMetadataSource {
-    File(PathBuf, Option<String>),
-    Text(String),
-}
 
 #[derive(Debug)]
 pub struct BuilderConfig<'a> {
@@ -44,9 +38,9 @@ impl Config {
     pub fn new(
         project_base_path: &Path,
         workspace_base_path: Option<&Path>,
-        extra_metadata: &[ExtraMetadataSource],
+        extra_metadata_src: &[ExtraMetadataSource],
     ) -> Result<Self, Error> {
-        let manifest_path = Self::create_cargo_toml_path(project_base_path);
+        let manifest_path = Self::create_cargo_toml_path(project_base_path)?;
 
         let manifest = if let Some(p) = workspace_base_path {
             // HACK when workspace used, manifest is generated from slice directly instead of
@@ -58,7 +52,7 @@ impl Config {
                 .map_err(|e| Error::FileIo(manifest_path.clone(), e))?;
             let mut manifest = Manifest::from_slice_with_metadata(&cargo_toml_content)?;
 
-            let workspace_manifest_path = Self::create_cargo_toml_path(p);
+            let workspace_manifest_path = Self::create_cargo_toml_path(p)?;
             let workspace_manifest =
                 Manifest::from_path(&workspace_manifest_path).map_err(|err| match err {
                     CargoTomlError::Io(e) => {
@@ -78,9 +72,9 @@ impl Config {
             })?
         };
 
-        let extra_metadata = extra_metadata
+        let extra_metadata = extra_metadata_src
             .iter()
-            .map(ExtraMetaData::new)
+            .map(|v| ExtraMetaData::new(v, &manifest_path))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Config {
@@ -90,8 +84,9 @@ impl Config {
         })
     }
 
-    pub(crate) fn create_cargo_toml_path<P: AsRef<Path>>(base_path: P) -> PathBuf {
-        base_path.as_ref().join("Cargo.toml")
+    pub(crate) fn create_cargo_toml_path<P: AsRef<Path>>(base_path: P) -> Result<PathBuf, Error> {
+        let path = base_path.as_ref().join("Cargo.toml");
+        path.canonicalize().map_err(|e| Error::FileIo(path, e))
     }
 
     fn table_to_dependencies(table: &Table) -> Result<Vec<Dependency>, ConfigError> {
@@ -324,6 +319,26 @@ impl Config {
                 builder = builder.provides(dependency);
             }
         }
+        if let Some(recommends) = metadata.get_table("recommends")? {
+            for dependency in Self::table_to_dependencies(recommends)? {
+                builder = builder.recommends(dependency);
+            }
+        }
+        if let Some(supplements) = metadata.get_table("supplements")? {
+            for dependency in Self::table_to_dependencies(supplements)? {
+                builder = builder.supplements(dependency);
+            }
+        }
+        if let Some(suggests) = metadata.get_table("suggests")? {
+            for dependency in Self::table_to_dependencies(suggests)? {
+                builder = builder.suggests(dependency);
+            }
+        }
+        if let Some(enhances) = metadata.get_table("enhances")? {
+            for dependency in Self::table_to_dependencies(enhances)? {
+                builder = builder.enhances(dependency);
+            }
+        }
 
         Ok(builder)
     }
@@ -421,9 +436,15 @@ documentation.workspace = true
 
     #[test]
     fn test_new() {
+        let cargo_toml_path = std::env::current_dir().unwrap().join("Cargo.toml");
+
         let config = Config::new(Path::new(""), None, &[]).unwrap();
         assert_eq!(config.manifest.package.unwrap().name, "cargo-generate-rpm");
-        assert_eq!(config.manifest_path, PathBuf::from("Cargo.toml"));
+        assert_eq!(config.manifest_path, cargo_toml_path);
+
+        let config = Config::new(std::env::current_dir().unwrap().as_path(), None, &[]).unwrap();
+        assert_eq!(config.manifest.package.unwrap().name, "cargo-generate-rpm");
+        assert_eq!(config.manifest_path, cargo_toml_path);
     }
 
     #[test]
