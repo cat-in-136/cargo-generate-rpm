@@ -91,14 +91,15 @@ pub struct Cli {
 impl Cli {
     pub fn get_matches_and_try_parse() -> Result<(Self, ArgMatches), clap::Error> {
         let mut args = std::env::args();
-        let mut matches = if let Some("generate-rpm") = args.nth(1).as_deref() {
-            <CargoWrapper as CommandFactory>::command().get_matches()
+        if let Some("generate-rpm") = args.nth(1).as_deref() {
+            let mut matches = <CargoWrapper as CommandFactory>::command().get_matches();
+            let CargoWrapper::GenerateRpm(arg) = CargoWrapper::from_arg_matches_mut(&mut matches)?;
+            Ok((arg, matches))
         } else {
-            <Self as CommandFactory>::command().get_matches()
-        };
-        let arg = Self::from_arg_matches_mut(&mut matches)?;
-
-        Ok((arg, matches))
+            let mut matches = <Self as CommandFactory>::command().get_matches();
+            let arg = Self::from_arg_matches_mut(&mut matches)?;
+            Ok((arg, matches))
+        }
     }
 }
 
