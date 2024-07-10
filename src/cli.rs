@@ -99,16 +99,18 @@ impl Cli {
         T: Into<OsString> + Clone,
     {
         let mut args = args_fn();
-        let matches = if args.nth(1) == Some(OsString::from("generate-rpm")) {
+        if args.nth(1) == Some(OsString::from("generate-rpm")) {
             let args = args_fn();
-            <CargoWrapper as CommandFactory>::command().get_matches_from(args)
+            let matches = <CargoWrapper as CommandFactory>::command().get_matches_from(args);
+            let CargoWrapper::GenerateRpm(arg) =
+                CargoWrapper::from_arg_matches_mut(&mut matches.clone())?;
+            Ok((arg, matches))
         } else {
             let args = args_fn();
-            <Self as CommandFactory>::command().get_matches_from(args)
-        };
-        let arg = Self::from_arg_matches_mut(&mut matches.clone())?;
-
-        Ok((arg, matches))
+            let matches = <Self as CommandFactory>::command().get_matches_from(args);
+            let arg = Self::from_arg_matches_mut(&mut matches.clone())?;
+            Ok((arg, matches))
+        }
     }
 
     pub fn get_matches_and_try_parse() -> Result<(Self, ArgMatches), clap::Error> {
