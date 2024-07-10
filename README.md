@@ -108,10 +108,11 @@ assets = [
 ]
 ```
 
-### `[package.metadata.generate-rpm.{requires,obsoletes,conflicts,provides}]` options
+### `[package.metadata.generate-rpm.{requires,obsoletes,conflicts,provides,recommends,supplements,suggests,enhances}]` options
 
-Dependencies such as "requires", "obsoletes", "conflicts", and "provides" shall be written in similar way as
-dependencies in Cargo.toml.
+Dependencies such as "requires", "obsoletes", "conflicts" and "provides" and
+weak dependencies such as "recommends", "supplements", "suggests", and "enhances"
+shall be written in similar way as dependencies in Cargo.toml.
 
 ```toml
 [package.metadata.generate-rpm.requires]
