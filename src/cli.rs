@@ -101,10 +101,20 @@ impl Cli {
         let mut args = args_fn();
         if args.nth(1) == Some(OsString::from("generate-rpm")) {
             let args = args_fn();
+            // This is the matches of the cargo command
             let matches = <CargoWrapper as CommandFactory>::command().get_matches_from(args);
             let CargoWrapper::GenerateRpm(arg) =
                 CargoWrapper::from_arg_matches_mut(&mut matches.clone())?;
-            Ok((arg, matches))
+            // matches are the args on the "cargo" call, generate-rpm is a subcommand
+            // we need to get the subcommand arguments from matches and return those.
+            match matches.subcommand_matches("generate-rpm") {
+                Some(subcommand_matches) => {
+                    Ok((arg, subcommand_matches.to_owned()))
+                }
+                None => {
+                    Ok((arg, matches))
+                }
+            }
         } else {
             let args = args_fn();
             let matches = <Self as CommandFactory>::command().get_matches_from(args);
@@ -257,8 +267,9 @@ mod tests {
             &[2]
         );
 
+        // Simulate being called from Cargo
         let (args, matcher) = Cli::get_matches_and_try_parse_from(|| {
-            ["generate-rpm", "-o", "/dev/null"]
+            ["cargo", "generate-rpm", "-o", "/dev/null", "-s", "release=1.foo"]
                 .map(&OsString::from)
                 .into_iter()
         })
