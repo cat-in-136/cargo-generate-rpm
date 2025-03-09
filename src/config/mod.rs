@@ -90,23 +90,31 @@ impl Config {
     }
 
     fn table_to_dependencies(table: &Table) -> Result<Vec<Dependency>, ConfigError> {
-        let mut dependencies = Vec::with_capacity(table.len());
+        let mut dependencies = Vec::new();
         for (key, value) in table {
             let ver = value
                 .as_str()
                 .ok_or(ConfigError::WrongDependencyVersion(key.clone()))?
                 .trim();
-            let ver_vec = ver.split_whitespace().collect::<Vec<_>>();
-            let dependency = match ver_vec.as_slice() {
-                [] | ["*"] => Ok(Dependency::any(key)),
-                ["<", ver] => Ok(Dependency::less(key.as_str(), ver.trim())),
-                ["<=", ver] => Ok(Dependency::less_eq(key.as_str(), ver.trim())),
-                ["=", ver] => Ok(Dependency::eq(key.as_str(), ver.trim())),
-                [">", ver] => Ok(Dependency::greater(key.as_str(), ver.trim())),
-                [">=", ver] => Ok(Dependency::greater_eq(key.as_str(), ver.trim())),
-                _ => Err(ConfigError::WrongDependencyVersion(key.clone())),
-            }?;
-            dependencies.push(dependency);
+
+            if ver.is_empty() {
+                dependencies.push(Dependency::any(key));
+                continue;
+            }
+
+            for ver_comp in ver.split(',') {
+                let ver_vec = ver_comp.split_whitespace().collect::<Vec<_>>();
+                let dependency = match ver_vec.as_slice() {
+                    ["*"] => Ok(Dependency::any(key)),
+                    ["<", ver] => Ok(Dependency::less(key.as_str(), ver.trim())),
+                    ["<=", ver] => Ok(Dependency::less_eq(key.as_str(), ver.trim())),
+                    ["=", ver] => Ok(Dependency::eq(key.as_str(), ver.trim())),
+                    [">", ver] => Ok(Dependency::greater(key.as_str(), ver.trim())),
+                    [">=", ver] => Ok(Dependency::greater_eq(key.as_str(), ver.trim())),
+                    _ => Err(ConfigError::WrongDependencyVersion(key.clone())),
+                }?;
+                dependencies.push(dependency);
+            }
         }
         Ok(dependencies)
     }
@@ -364,7 +372,7 @@ pub(crate) fn load_script_if_path<P: AsRef<Path>>(
 
 #[cfg(test)]
 mod test {
-    use cargo_toml::Value;
+    use toml::value::Value;
 
     use super::*;
 
@@ -449,6 +457,7 @@ documentation.workspace = true
 
     #[test]
     fn test_table_to_dependencies() {
+        // Verify various dependency version strings
         let mut table = Table::new();
         [
             ("any1", ""),
@@ -457,22 +466,33 @@ documentation.workspace = true
             ("lesseq", "<= 1.0"),
             ("eq", "= 1.0"),
             ("greater", "> 1.0"),
-            ("greatereq", "<= 1.0"),
+            ("greatereq", ">= 1.0"),
         ]
         .iter()
         .for_each(|(k, v)| {
             table.insert(k.to_string(), Value::String(v.to_string()));
         });
+        assert_eq!(
+            Config::table_to_dependencies(&table).unwrap(),
+            vec![
+                rpm::Dependency::any("any1"),
+                rpm::Dependency::any("any2"),
+                rpm::Dependency::eq("eq", "1.0"),
+                rpm::Dependency::greater("greater", "1.0"),
+                rpm::Dependency::greater_eq("greatereq", "1.0"),
+                rpm::Dependency::less("less", "1.0"),
+                rpm::Dependency::less_eq("lesseq", "1.0"),
+            ]
+        );
 
-        assert!(Config::table_to_dependencies(&table).is_ok());
-
-        // table.clear();
+        // Inserting an invalid dependency version, expecting an error.
         table.insert("error".to_string(), Value::Integer(1));
         assert!(matches!(
             Config::table_to_dependencies(&table),
             Err(ConfigError::WrongDependencyVersion(_))
         ));
 
+        // Not a valid version format, expecting an error.
         table.clear();
         table.insert("error".to_string(), Value::String("1".to_string()));
         assert!(matches!(
@@ -480,6 +500,7 @@ documentation.workspace = true
             Err(ConfigError::WrongDependencyVersion(_))
         ));
 
+        // invalid version constraint, expecting an error.
         table.clear();
         table.insert("error".to_string(), Value::String("!= 1".to_string()));
         assert!(matches!(
@@ -487,8 +508,44 @@ documentation.workspace = true
             Err(ConfigError::WrongDependencyVersion(_))
         ));
 
+        // a malformed version string, expecting an error.
         table.clear();
         table.insert("error".to_string(), Value::String("> 1 1".to_string()));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+
+        // Verify multiple-comparison dependency rule
+        //
+        table.clear();
+        table.insert(
+            "multi_comp".to_string(),
+            Value::String(">= 1.2, < 3.0".to_string()),
+        );
+        table.insert(
+            "single_comp".to_string(),
+            Value::String("> 4.5".to_string()),
+        );
+        assert_eq!(
+            Config::table_to_dependencies(&table).unwrap(),
+            vec![
+                rpm::Dependency::greater_eq("multi_comp", "1.2"),
+                rpm::Dependency::less("multi_comp", "3.0"),
+                rpm::Dependency::greater("single_comp", "4.5"),
+            ]
+        );
+
+        // empty in the multiple-comparison rule, expecting an error.
+        table.insert("error".to_string(), Value::String(">= 1.2, ".to_string()));
+        assert!(matches!(
+            Config::table_to_dependencies(&table),
+            Err(ConfigError::WrongDependencyVersion(_))
+        ));
+
+        // Inserting an invalid dependency version in the multiple-version rule, expecting an error.
+        table.clear();
+        table.insert("error".to_string(), Value::String(">= 1.2, 3".to_string()));
         assert!(matches!(
             Config::table_to_dependencies(&table),
             Err(ConfigError::WrongDependencyVersion(_))

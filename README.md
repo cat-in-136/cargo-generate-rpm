@@ -137,6 +137,9 @@ Following table lists the version comparisons:
 It is necessary to place a space between version and symbols such as `<`, `<=`, etc...
 `package = "version"` is not accepted, instead use `package = "= version"`.
 
+To specify multiple version requirements, the version comparisons shall be separated with a comma
+e.g., `package = ">= 1.2, < 3.4"`.
+
 This command automatically determines what shared libraries a package requires.
 There may be times when the automatic dependency processing is not desired.
 The packege author and users can configure the processing.
