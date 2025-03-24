@@ -55,7 +55,17 @@ fn test_find_requires() {
         find_requires(&[file!()], "not-exist"),
         Err(AutoReqError::ProcessError(_, _))
     ));
+    if Path::new(super::RPM_FIND_REQUIRES).is_file() {
+        assert!(!find_requires(&["/bin/cat"], super::RPM_FIND_REQUIRES)
+            .unwrap()
+            .is_empty());
+    }
 
     // empty dependencies shall return empty vector
     assert!(find_requires(&[file!()], "/bin/false").unwrap().is_empty());
+    if Path::new(super::RPM_FIND_REQUIRES).is_file() {
+        assert!(find_requires(&["/dev/null"], super::RPM_FIND_REQUIRES)
+            .unwrap()
+            .is_empty());
+    }
 }
