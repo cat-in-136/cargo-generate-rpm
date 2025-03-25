@@ -1,6 +1,6 @@
 use crate::error::AutoReqError;
 use std::ffi::OsStr;
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -26,14 +26,23 @@ pub(super) fn find_requires<P: AsRef<Path>, S: AsRef<OsStr>>(
         .write_all(filenames.as_bytes())
         .map_err(|e| AutoReqError::ProcessError(script_path.as_ref().to_os_string(), e))?;
 
-    let mut requires = String::new();
-    process
-        .stdout
-        .unwrap()
-        .read_to_string(&mut requires)
-        .map_err(|e| AutoReqError::ProcessError(script_path.as_ref().to_os_string(), e))?;
+    let mut requires = Vec::new();
+    let reader = BufReader::new(process.stdout.unwrap());
 
-    Ok(requires.trim().split('\n').map(&String::from).collect())
+    for line in reader.lines() {
+        match line {
+            Ok(content) if content == "" => (), // ignore empty line
+            Ok(content) => requires.push(content),
+            Err(e) => {
+                return Err(AutoReqError::ProcessError(
+                    script_path.as_ref().to_os_string(),
+                    e,
+                ))
+            }
+        }
+    }
+
+    Ok(requires)
 }
 
 #[test]
@@ -46,4 +55,17 @@ fn test_find_requires() {
         find_requires(&[file!()], "not-exist"),
         Err(AutoReqError::ProcessError(_, _))
     ));
+    if Path::new(super::RPM_FIND_REQUIRES).is_file() {
+        assert!(!find_requires(&["/bin/cat"], super::RPM_FIND_REQUIRES)
+            .unwrap()
+            .is_empty());
+    }
+
+    // empty dependencies shall return empty vector
+    assert!(find_requires(&[file!()], "/bin/false").unwrap().is_empty());
+    if Path::new(super::RPM_FIND_REQUIRES).is_file() {
+        assert!(find_requires(&["/dev/null"], super::RPM_FIND_REQUIRES)
+            .unwrap()
+            .is_empty());
+    }
 }
