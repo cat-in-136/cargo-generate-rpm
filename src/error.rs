@@ -58,7 +58,7 @@ impl<E: StdError + Display> Display for FileAnnotatedError<E> {
 
 #[derive(thiserror::Error, Debug)]
 pub enum AutoReqError {
-    #[error("Failed to execute `{}`: {1}", .0.clone().into_string().unwrap_or_default())]
+    #[error("Failed to execute `{file}`: {1}", file = .0.clone().into_string().unwrap_or_default())]
     ProcessError(OsString, #[source] IoError),
     #[error(transparent)]
     Io(#[from] IoError),
