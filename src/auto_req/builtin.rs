@@ -130,13 +130,23 @@ fn test_find_requires_of_elf() {
 
 fn find_require_of_shebang(path: &Path) -> Result<Option<String>, AutoReqError> {
     let interpreter = {
-        let file = File::open(path)?;
+        let file = match File::open(path) {
+            Ok(file) => file,
+            Err(_) => return Ok(None),
+        };
         let mut read = BufReader::new(file);
         let mut shebang = [0u8; 2];
-        let shebang_size = read.read(&mut shebang)?;
+        let shebang_size = match read.read(&mut shebang) {
+            Ok(0) => return Ok(None),
+            Ok(size) => size,
+            Err(_) => return Ok(None),
+        };
         if shebang_size == 2 || shebang == [b'#', b'!'] {
             let mut line = String::new();
-            read.read_line(&mut line)?;
+            match read.read_line(&mut line) {
+                Ok(_) => {}
+                Err(_) => return Ok(None),
+            };
             line.trim()
                 .split(|c: char| !c.is_ascii() || c.is_whitespace())
                 .next()

@@ -60,7 +60,7 @@ impl<E: StdError + Display> Display for FileAnnotatedError<E> {
 pub enum AutoReqError {
     #[error("Failed to execute `{}`: {1}", .0.clone().into_string().unwrap_or_default())]
     ProcessError(OsString, #[source] IoError),
-    #[error(transparent)]
+    #[error("Failed to read file: {0}")]
     Io(#[from] IoError),
 }
 
@@ -68,21 +68,21 @@ pub enum AutoReqError {
 pub enum Error {
     #[error("Cargo.toml: {0}")]
     CargoToml(#[from] CargoTomlError),
-    #[error(transparent)]
+    #[error("Config: {0}")]
     Config(#[from] ConfigError),
-    #[error("Invalid value of enviroment variable {0}: {1}")]
+    #[error("Invalid value of environment variable {0}: {1}")]
     #[allow(clippy::enum_variant_names)] // Allow bad terminology for compatibility
     EnvError(&'static str, String),
-    #[error(transparent)]
+    #[error("Error parsing TOML file: {0}")]
     ParseTomlFile(#[from] FileAnnotatedError<TomlDeError>),
-    #[error(transparent)]
+    #[error("Error in extra config: {0}")]
     ExtraConfig(#[from] FileAnnotatedError<ConfigError>),
-    #[error(transparent)]
+    #[error("Error in auto-require: {0}")]
     AutoReq(#[from] AutoReqError),
-    #[error(transparent)]
+    #[error("Error parsing RPM file: {0}")]
     Rpm(#[from] rpm::Error),
     #[error("{1}: {0}")]
     FileIo(PathBuf, #[source] IoError),
-    #[error(transparent)]
+    #[error("I/O error: {0}")]
     Io(#[from] IoError),
 }
