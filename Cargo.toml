@@ -2,7 +2,11 @@
 name = "cargo-generate-rpm"
 license = "MIT"
 authors = ["@cat_in_136"]
-categories = ["command-line-utilities", "development-tools::cargo-plugins", "development-tools::build-utils"]
+categories = [
+    "command-line-utilities",
+    "development-tools::cargo-plugins",
+    "development-tools::build-utils",
+]
 description = "Generate a binary RPM package (.rpm) from Cargo projects"
 homepage = "https://github.com/cat-in-136/cargo-generate-rpm"
 readme = "README.md"
@@ -13,12 +17,12 @@ edition = "2021"
 
 [dependencies]
 glob = "0.3"
-rpm = { version = "0.14", default-features = false }
+rpm = { version = "0.17", default-features = false }
 toml = "0.8"
-cargo_toml = "0.21"
-clap = { version = "~4.3", features = ["derive"] }
+cargo_toml = "0.22"
+clap = { version = "~4.5", features = ["derive"] }
 color-print = "0.3"
-thiserror = "1"
+thiserror = "2"
 elf = "0.7"
 
 [dev-dependencies]
@@ -28,5 +32,5 @@ tempfile = "3"
 assets = [
     { source = "target/release/cargo-generate-rpm", dest = "/usr/bin/cargo-generate-rpm", mode = "0755" },
     { source = "LICENSE", dest = "/usr/share/doc/cargo-generate-rpm/LICENSE", doc = true, mode = "0644" },
-    { source = "README.md", dest = "/usr/share/doc/cargo-generate-rpm/README.md", doc = true, mode = "0644" }
+    { source = "README.md", dest = "/usr/share/doc/cargo-generate-rpm/README.md", doc = true, mode = "0644" },
 ]

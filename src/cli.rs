@@ -69,7 +69,7 @@ pub struct Cli {
     /// modification time of included files and package build time.
     ///
     /// This value can also be provided using the SOURCE_DATE_EPOCH
-    /// enviroment variable.
+    /// environment variable.
     #[arg(long)]
     pub source_date: Option<u32>,
 
