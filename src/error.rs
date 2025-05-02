@@ -58,7 +58,7 @@ impl<E: StdError + Display> Display for FileAnnotatedError<E> {
 
 #[derive(thiserror::Error, Debug)]
 pub enum AutoReqError {
-    #[error("Failed to execute `{}`: {1}", .0.clone().into_string().unwrap_or_default())]
+    #[error("Failed to execute `{file}`: {1}", file = .0.clone().into_string().unwrap_or_default())]
     ProcessError(OsString, #[source] IoError),
     #[error(transparent)]
     Io(#[from] IoError),
@@ -70,7 +70,7 @@ pub enum Error {
     CargoToml(#[from] CargoTomlError),
     #[error(transparent)]
     Config(#[from] ConfigError),
-    #[error("Invalid value of enviroment variable {0}: {1}")]
+    #[error("Invalid value of environment variable {0}: {1}")]
     #[allow(clippy::enum_variant_names)] // Allow bad terminology for compatibility
     EnvError(&'static str, String),
     #[error(transparent)]
