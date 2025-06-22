@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use toml::Value;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct FileInfo<'a, 'b, 'c, 'd, 'e> {
+pub struct AssetInfo<'a, 'b, 'c, 'd, 'e> {
     pub source: &'a str,
     pub dest: &'b str,
     pub user: Option<&'c str>,
@@ -20,8 +20,8 @@ pub struct FileInfo<'a, 'b, 'c, 'd, 'e> {
     pub caps: Option<&'e str>,
 }
 
-impl FileInfo<'_, '_, '_, '_, '_> {
-    pub fn new(assets: &[Value]) -> Result<Vec<FileInfo<'_, '_, '_, '_, '_>>, ConfigError> {
+impl AssetInfo<'_, '_, '_, '_, '_> {
+    pub fn new(assets: &[Value]) -> Result<Vec<AssetInfo>, ConfigError> {
         let mut files = Vec::with_capacity(assets.len());
         for (idx, value) in assets.iter().enumerate() {
             let table = value
@@ -90,9 +90,9 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                     return Err(ConfigError::AssetFileWrongType(
                         idx,
                         "config",
-                        "bool, string, or array of strings",
+                        "bool or \"noreplace\"",
                     ));
-                }
+                } //_ => return Err(ConfigError::AssetFileWrongType(idx, "config", "bool or \"noreplace\" or \"missingok\"")),
             };
 
             let doc = if let Some(is_doc) = table.get("doc") {
@@ -103,7 +103,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                 false
             };
 
-            files.push(FileInfo {
+            files.push(AssetInfo {
                 source,
                 dest,
                 user,
@@ -335,11 +335,11 @@ mod test {
             .as_table()
             .unwrap();
         let assets = metadata.get("assets").and_then(|v| v.as_array()).unwrap();
-        let files = FileInfo::new(assets.as_slice()).unwrap();
+        let files = AssetInfo::new(assets.as_slice()).unwrap();
         assert_eq!(
             files,
             vec![
-                FileInfo {
+                AssetInfo {
                     source: "target/release/cargo-generate-rpm",
                     dest: "/usr/bin/cargo-generate-rpm",
                     user: None,
@@ -351,7 +351,7 @@ mod test {
                     doc: false,
                     caps: None,
                 },
-                FileInfo {
+                AssetInfo {
                     source: "LICENSE",
                     dest: "/usr/share/doc/cargo-generate-rpm/LICENSE",
                     user: None,
@@ -363,7 +363,7 @@ mod test {
                     doc: true,
                     caps: None,
                 },
-                FileInfo {
+                AssetInfo {
                     source: "README.md",
                     dest: "/usr/share/doc/cargo-generate-rpm/README.md",
                     user: None,
@@ -384,7 +384,7 @@ mod test {
         let tempdir = tempfile::tempdir().unwrap();
         let args = crate::cli::Cli::default();
         let target = BuildTarget::new(&args);
-        let file_info = FileInfo {
+        let file_info = AssetInfo {
             source: "README.md",
             dest: "/usr/share/doc/cargo-generate-rpm/README.md",
             user: None,
@@ -407,7 +407,7 @@ mod test {
             vec![(Some(file_info.source), &file_info.dest.to_string())]
         );
 
-        let file_info = FileInfo {
+        let file_info = AssetInfo {
             source: "not-exist-file",
             dest: "/usr/share/doc/cargo-generate-rpm/not-exist-file",
             user: None,
@@ -426,7 +426,7 @@ mod test {
 
         std::fs::create_dir_all(tempdir.path().join("target/release")).unwrap();
         File::create(tempdir.path().join("target/release/foobar")).unwrap();
-        let file_info = FileInfo {
+        let file_info = AssetInfo {
             source: "target/release/foobar",
             dest: "/usr/bin/foobar",
             user: None,
@@ -498,7 +498,7 @@ mod test {
                 .join("target/target-triple/my-profile/my-bin"),
         )
         .unwrap();
-        let file_info = FileInfo {
+        let file_info = AssetInfo {
             source: "target/release/my-bin",
             dest: "/usr/bin/my-bin",
             user: None,
@@ -608,7 +608,7 @@ config = ["missingok", "noreplace"]
         let metadata = metadata.as_table().unwrap();
         let assets_table = metadata.get("generate-rpm").unwrap().as_table().unwrap();
         let assets = assets_table.get("assets").unwrap().as_array().unwrap();
-        let files = FileInfo::new(assets).unwrap();
+        let files = AssetInfo::new(assets).unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].config, true);
         assert_eq!(files[0].missingok, true);
