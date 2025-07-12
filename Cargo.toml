@@ -28,7 +28,7 @@ cargo_toml = "0.22"
 clap = { version = "~4.5", features = ["derive"] }
 color-print = "0.3"
 thiserror = "2"
-elf = "0.7"
+elf = "0.8"
 
 [dev-dependencies]
 tempfile = "3"
