@@ -406,7 +406,7 @@ mod test {
         assert_eq!(metadata_config.get_bool("bool").unwrap(), Some(false));
         assert_eq!(
             metadata_config.get_table("table").unwrap(),
-            "int = 128".parse::<Value>().unwrap().as_table()
+            Some(&toml! { int = 128 })
         );
         assert_eq!(
             metadata_config.get_array("array").unwrap().unwrap(),
