@@ -128,11 +128,9 @@ impl ExtraMetaData {
             }
             ExtraMetadataSource::Text(text) => {
                 let annot: Option<PathBuf> = None;
-                let toml = text
-                    .parse::<Value>()
+                let table = text
+                    .parse::<Table>()
                     .map_err(|e| FileAnnotatedError(annot.clone(), e))?;
-                let table = Self::convert_toml_txt_to_table(&toml, &None as &_)
-                    .map_err(|e| FileAnnotatedError(annot, e))?;
                 Ok(Self(table.clone(), source.clone()))
             }
             ExtraMetadataSource::Variant(variant) => {
