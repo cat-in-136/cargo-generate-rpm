@@ -120,7 +120,7 @@ impl ExtraMetaData {
             ExtraMetadataSource::File(p, branch) => {
                 let annot: Option<PathBuf> = Some(p.clone());
                 let toml = fs::read_to_string(p)?
-                    .parse::<Value>()
+                    .parse::<Table>()
                     .map_err(|e| FileAnnotatedError(annot.clone(), e))?;
                 let table = Self::convert_toml_txt_to_table(&toml, branch)
                     .map_err(|e| FileAnnotatedError(annot, e))?;
@@ -136,7 +136,7 @@ impl ExtraMetaData {
             ExtraMetadataSource::Variant(variant) => {
                 let annot: Option<PathBuf> = Some(package_manifest.clone());
                 let toml = fs::read_to_string(package_manifest)?
-                    .parse::<Value>()
+                    .parse::<Table>()
                     .map_err(|e| FileAnnotatedError(annot.clone(), e))?;
                 let branch = format!("package.metadata.generate-rpm.variants.{variant}");
                 let table = Self::convert_toml_txt_to_table(&toml, &Some(branch))
@@ -147,13 +147,9 @@ impl ExtraMetaData {
     }
 
     fn convert_toml_txt_to_table<'a>(
-        toml: &'a Value,
+        root: &'a Table,
         branch: &Option<String>,
     ) -> Result<&'a Table, ConfigError> {
-        let root = toml
-            .as_table()
-            .ok_or(ConfigError::WrongType(".".to_string(), "table"))?;
-
         if let Some(branch) = branch {
             toml_dotted_bare_key_parser::parse_dotted_bare_keys(branch.as_ref())
                 .map_err(|e| ConfigError::WrongBranchPathOfToml(branch.clone(), e))?
