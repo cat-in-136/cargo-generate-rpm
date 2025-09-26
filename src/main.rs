@@ -1,10 +1,10 @@
 use crate::{build_target::BuildTarget, config::BuilderConfig};
 use cli::Cli;
+use rpm::signature::pgp::Signer;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-
 mod auto_req;
 mod build_target;
 mod cli;
@@ -37,9 +37,23 @@ fn run() -> Result<(), Error> {
     } else {
         Config::new(Path::new(""), None, &extra_metadata)?
     };
-    let rpm_pkg = config
-        .create_rpm_builder(BuilderConfig::new(&build_target, &args))?
-        .build()?;
+
+    let signer = if let Some(keyfile_path) = &args.signing_key {
+        let key: Vec<u8> = fs::read(keyfile_path)
+            .map_err(|err| Error::FileIo(PathBuf::from(keyfile_path), err))?;
+        Some(Signer::load_from_asc_bytes(&key))
+    } else {
+        None
+    }
+    .transpose()?;
+
+    let rpm_builder = config.create_rpm_builder(BuilderConfig::new(&build_target, &args))?;
+
+    let rpm_pkg = if let Some(signer) = signer {
+        rpm_builder.build_and_sign(signer)
+    } else {
+        rpm_builder.build()
+    }?;
 
     let pkg_name = rpm_pkg.metadata.get_name()?;
     let pkg_version = rpm_pkg.metadata.get_version()?;
@@ -65,6 +79,7 @@ fn run() -> Result<(), Error> {
     }
     let mut f = fs::File::create(&target_file_name)
         .map_err(|err| Error::FileIo(target_file_name.to_path_buf(), err))?;
+
     rpm_pkg.write(&mut f)?;
 
     Ok(())

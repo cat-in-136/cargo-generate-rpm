@@ -1,6 +1,6 @@
 use clap::{
-    builder::{PathBufValueParser, PossibleValuesParser, TypedValueParser, ValueParserFactory},
     Arg, ArgMatches, Command, CommandFactory, FromArgMatches, Parser, ValueEnum,
+    builder::{PathBufValueParser, PossibleValuesParser, TypedValueParser, ValueParserFactory},
 };
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
@@ -86,6 +86,10 @@ pub struct Cli {
     /// Shortcut to --metadata-overwrite=path/to/Cargo.toml#package.metadata.generate-rpm.variants.VARIANT
     #[arg(long, value_delimiter = ',')]
     pub variant: Vec<String>,
+
+    /// Path to a PGP private key file for signing the built RPM package
+    #[arg(long)]
+    pub signing_key: Option<PathBuf>,
 }
 
 impl Cli {

@@ -30,6 +30,8 @@ Upon run `cargo generate-rpm` on your cargo project, a binary RPM package file w
 in `target/generate-rpm/XXX.rpm`.
 You can change the RPM package file location using `-o` option.
 
+You can sign the packaged RPM with a PGP key by providing the path to a key file with the `--signing_key` CLI option.
+
 In advance, run `cargo build --release` and strip the debug symbols (`strip -s target/release/XXX`), because these are not
 run upon `cargo generate-rpm` as of now.
 
