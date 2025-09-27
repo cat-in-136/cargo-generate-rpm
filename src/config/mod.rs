@@ -5,7 +5,7 @@ use cargo_toml::Manifest;
 use rpm::Dependency;
 use toml::value::Table;
 
-use crate::auto_req::{find_requires, AutoReqMode};
+use crate::auto_req::{AutoReqMode, find_requires};
 use crate::build_target::BuildTarget;
 use crate::cli::{Cli, ExtraMetadataSource};
 use crate::error::{ConfigError, Error};
@@ -159,8 +159,7 @@ impl Config {
         let files = FileInfo::new(assets)?;
         let parent = self.manifest_path.parent().unwrap();
 
-        let build_config = rpm::BuildConfig::default()
-            .compression(cfg.args.payload_compress);
+        let build_config = rpm::BuildConfig::default().compression(cfg.args.payload_compress);
         let mut builder = rpm::PackageBuilder::new(name, version, license, arch.as_str(), desc)
             .using_config(build_config);
         builder = if let Some(t) = cfg.args.source_date {

@@ -1,12 +1,12 @@
+use crate::Error;
 use crate::cli::ExtraMetadataSource;
 use crate::error::{ConfigError, FileAnnotatedError};
-use crate::Error;
 use cargo_toml::Manifest;
 use rpm::Scriptlet;
 use std::fs;
 use std::path::PathBuf;
-use toml::value::Table;
 use toml::Value;
+use toml::value::Table;
 
 mod toml_dotted_bare_key_parser {
     use crate::error::DottedBareKeyLexError;

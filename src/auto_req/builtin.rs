@@ -122,9 +122,11 @@ fn find_requires_of_elf(path: &Path) -> Result<Option<BTreeSet<String>>, AutoReq
 #[test]
 fn test_find_requires_of_elf() {
     let requires = find_requires_of_elf(Path::new("/bin/sh")).unwrap().unwrap();
-    assert!(requires
-        .iter()
-        .all(|v| v.contains(".so") || v == "rtld(GNU_HASH)"));
+    assert!(
+        requires
+            .iter()
+            .all(|v| v.contains(".so") || v == "rtld(GNU_HASH)")
+    );
     assert!(matches!(find_requires_of_elf(Path::new(file!())), Ok(None)));
 }
 

@@ -37,7 +37,7 @@ pub(super) fn find_requires<P: AsRef<Path>, S: AsRef<OsStr>>(
                 return Err(AutoReqError::ProcessError(
                     script_path.as_ref().to_os_string(),
                     e,
-                ))
+                ));
             }
         }
     }
@@ -56,16 +56,20 @@ fn test_find_requires() {
         Err(AutoReqError::ProcessError(_, _))
     ));
     if Path::new(super::RPM_FIND_REQUIRES).is_file() {
-        assert!(!find_requires(&["/bin/cat"], super::RPM_FIND_REQUIRES)
-            .unwrap()
-            .is_empty());
+        assert!(
+            !find_requires(&["/bin/cat"], super::RPM_FIND_REQUIRES)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     // empty dependencies shall return empty vector
     assert!(find_requires(&[file!()], "/bin/false").unwrap().is_empty());
     if Path::new(super::RPM_FIND_REQUIRES).is_file() {
-        assert!(find_requires(&["/dev/null"], super::RPM_FIND_REQUIRES)
-            .unwrap()
-            .is_empty());
+        assert!(
+            find_requires(&["/dev/null"], super::RPM_FIND_REQUIRES)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

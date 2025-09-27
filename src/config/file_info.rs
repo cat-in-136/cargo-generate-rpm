@@ -73,7 +73,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                         idx,
                         "config",
                         "bool or \"noreplace\"",
-                    ))
+                    ));
                 } //_ => return Err(ConfigError::AssetFileWrongType(idx, "config", "bool or \"noreplace\" or \"missingok\"")),
             };
             let doc = if let Some(is_doc) = table.get("doc") {
