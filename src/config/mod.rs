@@ -159,8 +159,10 @@ impl Config {
         let files = FileInfo::new(assets)?;
         let parent = self.manifest_path.parent().unwrap();
 
-        let mut builder = rpm::PackageBuilder::new(name, version, license, arch.as_str(), desc)
+        let build_config = rpm::BuildConfig::default()
             .compression(cfg.args.payload_compress);
+        let mut builder = rpm::PackageBuilder::new(name, version, license, arch.as_str(), desc)
+            .using_config(build_config);
         builder = if let Some(t) = cfg.args.source_date {
             builder.source_date(t)
         } else if let Ok(t) = std::env::var("SOURCE_DATE_EPOCH") {

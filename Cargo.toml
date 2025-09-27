@@ -17,7 +17,7 @@ edition = "2024"
 
 [dependencies]
 glob = "0.3"
-rpm = { version = "0.17", default-features = false, features = [
+rpm = { version = "0.18", default-features = false, features = [
     "zstd-compression",
     "gzip-compression",
     "xz-compression",
@@ -25,7 +25,7 @@ rpm = { version = "0.17", default-features = false, features = [
     "signature-pgp",
 ] }
 toml = "0.9"
-cargo_toml = "0.22.3"
+cargo_toml = "0.22"
 clap = { version = "~4.5", features = ["derive"] }
 color-print = "0.3"
 thiserror = "2"
