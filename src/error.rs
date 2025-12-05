@@ -60,7 +60,11 @@ impl<E: StdError + Display> Display for FileAnnotatedError<E> {
 pub enum AutoReqError {
     #[error("Failed to execute `{file}`: {1}", file = .0.clone().into_string().unwrap_or_default())]
     ProcessError(OsString, #[source] IoError),
+    #[cfg(unix)]
     #[error("Failed to read shebang line for file `{path}`. The file may be a non-text or binary file incorrectly marked as executable: {1}", path = .0.display())]
+    WrongShebangError(PathBuf, #[source] IoError),
+    #[cfg(not(unix))]
+    #[error("Failed to read shebang line for file `{path}`: {1}", path = .0.display())]
     WrongShebangError(PathBuf, #[source] IoError),
     #[error(transparent)]
     Io(#[from] IoError),
