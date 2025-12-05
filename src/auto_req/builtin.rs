@@ -138,7 +138,8 @@ fn find_require_of_shebang(path: &Path) -> Result<Option<String>, AutoReqError> 
         let shebang_size = read.read(&mut shebang)?;
         if shebang_size == 2 || shebang == [b'#', b'!'] {
             let mut line = String::new();
-            read.read_line(&mut line)?;
+            read.read_line(&mut line)
+                .map_err(|e| AutoReqError::WrongShebangError(path.to_path_buf(), e))?;
             line.trim()
                 .split(|c: char| !c.is_ascii() || c.is_whitespace())
                 .next()
@@ -164,6 +165,26 @@ fn test_find_require_of_shebang() {
         find_require_of_shebang(Path::new(file!())),
         Ok(None)
     ));
+}
+
+#[test]
+fn test_find_require_of_shebang_non_utf8_executable() -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::Write;
+
+    let mut temp_file = tempfile::NamedTempFile::new()?;
+    let temp_path = temp_file.path().to_path_buf();
+
+    // Write a shebang followed by an invalid UTF-8 byte (0xFF).
+    // This will cause `read_line` to fail with InvalidData.
+    temp_file.write_all(&[b'#', b'!', 0xFF])?;
+    temp_file.flush()?;
+
+    assert!(matches!(find_require_of_shebang(&temp_path),
+            Err(AutoReqError::WrongShebangError(p, e))
+            if p == temp_path && e.kind() == std::io::ErrorKind::InvalidData
+    ));
+
+    Ok(())
 }
 
 #[cfg(unix)]
