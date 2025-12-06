@@ -31,7 +31,7 @@ pub(super) fn find_requires<P: AsRef<Path>, S: AsRef<OsStr>>(
 
     for line in reader.lines() {
         match line {
-            Ok(content) if content == "" => (), // ignore empty line
+            Ok(content) if content.is_empty() => (), // ignore empty line
             Ok(content) => requires.push(content),
             Err(e) => {
                 return Err(AutoReqError::ProcessOutputReadError(
