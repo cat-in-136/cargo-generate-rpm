@@ -20,7 +20,7 @@ pub struct FileInfo<'a, 'b, 'c, 'd, 'e> {
 }
 
 impl FileInfo<'_, '_, '_, '_, '_> {
-    pub fn new(assets: &[Value]) -> Result<Vec<FileInfo>, ConfigError> {
+    pub fn new(assets: &[Value]) -> Result<Vec<FileInfo<'_, '_, '_, '_, '_>>, ConfigError> {
         let mut files = Vec::with_capacity(assets.len());
         for (idx, value) in assets.iter().enumerate() {
             let table = value
