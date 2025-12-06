@@ -27,7 +27,7 @@ jobs:
     - name: Run binary for test purpose
       shell: bash -xe {0}
       run: |
-        cargo run --profile dev -- --profile dev
+        cargo run --profile dev -- --profile dev --payload-compress none
         test -f target/generate-rpm/cargo-generate-rpm-*.rpm
         rm -f target/generate-rpm/cargo-generate-rpm-*.rpm
         cargo run --release -- generate-rpm
