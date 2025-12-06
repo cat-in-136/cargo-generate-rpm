@@ -66,6 +66,10 @@ pub enum AutoReqError {
     #[cfg(not(unix))]
     #[error("Failed to read shebang line for file `{path}`: {1}", path = .0.display())]
     WrongShebangError(PathBuf, #[source] IoError),
+    #[error("Failed to read output stream from command `ldd` while processing file `{path}`: {1}", path = .0.display())]
+    LddOutputReadError(PathBuf, #[source] IoError),
+    #[error("Failed to read output stream from process `{file}`: {1}", file = .0.clone().into_string().unwrap_or_default())]
+    ProcessOutputReadError(OsString, #[source] IoError),
     #[error(transparent)]
     Io(#[from] IoError),
 }

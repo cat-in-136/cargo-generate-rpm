@@ -74,7 +74,7 @@ fn find_requires_by_ldd(
         .stdout
         .unwrap()
         .read_to_string(&mut s)
-        .map_err(|e| AutoReqError::ProcessError(OsString::from("ldd"), e))?;
+        .map_err(|e| AutoReqError::LddOutputReadError(path.to_path_buf(), e))?;
 
     let unversioned_libraries = s
         .split('\n')

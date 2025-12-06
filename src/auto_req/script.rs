@@ -34,7 +34,7 @@ pub(super) fn find_requires<P: AsRef<Path>, S: AsRef<OsStr>>(
             Ok(content) if content == "" => (), // ignore empty line
             Ok(content) => requires.push(content),
             Err(e) => {
-                return Err(AutoReqError::ProcessError(
+                return Err(AutoReqError::ProcessOutputReadError(
                     script_path.as_ref().to_os_string(),
                     e,
                 ));
