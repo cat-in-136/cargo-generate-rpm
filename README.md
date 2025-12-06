@@ -142,6 +142,17 @@ It is necessary to place a space between version and symbols such as `<`, `<=`, 
 To specify multiple version requirements, the version comparisons shall be separated with a comma
 e.g., `package = ">= 1.2, < 3.4"`.
 
+Rich dependencies (e.g., dependencies with conditions) are also supported
+The syntax for rich dependencies can be directly specified as the key in the TOML table.
+
+For example, to recommend `authselect` and `(oddjob-mkhomedir if authselect)`:
+
+```toml
+[package.metadata.generate-rpm.recommends]
+authselect = ""
+"(oddjob-mkhomedir if authselect)" = ""
+```
+
 This command automatically determines what shared libraries a package requires.
 There may be times when the automatic dependency processing is not desired.
 The packege author and users can configure the processing.
