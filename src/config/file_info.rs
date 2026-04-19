@@ -66,30 +66,21 @@ impl FileInfo<'_, '_, '_, '_, '_> {
             };
             let (config, missingok, noreplace) = match table.get("config") {
                 Some(Value::Boolean(v)) => (*v, false, false),
-                Some(Value::String(v)) if v.eq("missingok") => (true, false, true),
-                Some(Value::String(v)) if v.eq("noreplace") => (true, true, false),
+                Some(Value::String(v)) if v.eq("missingok") => (true, true, false),
+                Some(Value::String(v)) if v.eq("noreplace") => (true, false, true),
                 Some(Value::Array(arr)) => {
-                    let mut missingok = false;
-                    let mut noreplace = false;
+                    let (mut missingok, mut noreplace) = (false, false);
                     for item in arr {
-                        if let Some(s) = item.as_str() {
-                            match s {
-                                "missingok" => missingok = true,
-                                "noreplace" => noreplace = true,
-                                _ => {
-                                    return Err(ConfigError::AssetFileWrongType(
-                                        idx,
-                                        "config",
-                                        "array elements must be 'missingok' or 'noreplace'",
-                                    ));
-    }
-}
-                        } else {
-                            return Err(ConfigError::AssetFileWrongType(
-                                idx,
-                                "config",
-                                "array elements must be strings",
-                            ));
+                        match item {
+                            Value::String(v) if v.eq("missingok") => missingok = true,
+                            Value::String(v) if v.eq("noreplace") => noreplace = true,
+                            _ => {
+                                return Err(ConfigError::AssetFileWrongType(
+                                    idx,
+                                    "config",
+                                    "array element must be 'missingok' or 'noreplace'",
+                                ));
+                            }
                         }
                     }
                     (true, missingok, noreplace)
@@ -103,6 +94,7 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                     ));
                 }
             };
+
             let doc = if let Some(is_doc) = table.get("doc") {
                 is_doc
                     .as_bool()
@@ -327,26 +319,9 @@ mod test {
                 out, test.1,
                 "get_base_from_glob({0:?}) shall equal to {1:?}",
                 test.0, test.1
-        );
-
-        // Test array config format: ["missingok", "noreplace"]
-        let json = r#"
-            {
-                source = "test",
-                dest = "/usr/bin/test",
-                config = ["missingok", "noreplace"]
-            }
-        "#;
-        let value: Value = json.parse().unwrap();
-        let table = value.as_table().unwrap();
-        let assets = table.get("assets").unwrap().as_array().unwrap();
-        let files = FileInfo::new(assets).unwrap();
-        assert_eq!(files.len(), 1);
-        assert_eq!(files[0].config, true);
-        assert_eq!(files[0].missingok, true);
-        assert_eq!(files[0].noreplace, true);
+            );
+        }
     }
-}
 
     #[test]
     fn test_new() {
