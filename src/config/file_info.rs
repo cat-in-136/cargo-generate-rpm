@@ -68,14 +68,40 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                 Some(Value::Boolean(v)) => (*v, false, false),
                 Some(Value::String(v)) if v.eq("missingok") => (true, false, true),
                 Some(Value::String(v)) if v.eq("noreplace") => (true, true, false),
+                Some(Value::Array(arr)) => {
+                    let mut missingok = false;
+                    let mut noreplace = false;
+                    for item in arr {
+                        if let Some(s) = item.as_str() {
+                            match s {
+                                "missingok" => missingok = true,
+                                "noreplace" => noreplace = true,
+                                _ => {
+                                    return Err(ConfigError::AssetFileWrongType(
+                                        idx,
+                                        "config",
+                                        "array elements must be 'missingok' or 'noreplace'",
+                                    ));
+    }
+}
+                        } else {
+                            return Err(ConfigError::AssetFileWrongType(
+                                idx,
+                                "config",
+                                "array elements must be strings",
+                            ));
+                        }
+                    }
+                    (true, missingok, noreplace)
+                }
                 None => (false, false, false),
                 _ => {
                     return Err(ConfigError::AssetFileWrongType(
                         idx,
                         "config",
-                        "bool, \"missingok\" or \"noreplace\"",
+                        "bool, string, or array of strings",
                     ));
-                } //_ => return Err(ConfigError::AssetFileWrongType(idx, "config", "bool or \"noreplace\" or \"missingok\"")),
+                }
             };
             let doc = if let Some(is_doc) = table.get("doc") {
                 is_doc
@@ -301,9 +327,26 @@ mod test {
                 out, test.1,
                 "get_base_from_glob({0:?}) shall equal to {1:?}",
                 test.0, test.1
-            );
-        }
+        );
+
+        // Test array config format: ["missingok", "noreplace"]
+        let json = r#"
+            {
+                source = "test",
+                dest = "/usr/bin/test",
+                config = ["missingok", "noreplace"]
+            }
+        "#;
+        let value: Value = json.parse().unwrap();
+        let table = value.as_table().unwrap();
+        let assets = table.get("assets").unwrap().as_array().unwrap();
+        let files = FileInfo::new(assets).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].config, true);
+        assert_eq!(files[0].missingok, true);
+        assert_eq!(files[0].noreplace, true);
     }
+}
 
     #[test]
     fn test_new() {
@@ -568,5 +611,32 @@ mod test {
                 "/usr/share/doc/cargo-generate-rpm/README.md".into()
             )]
         );
+
+        // Test array config format: ["missingok", "noreplace"]
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cargo_toml_path = temp_dir.path().join("Cargo.toml");
+        std::fs::write(
+            &cargo_toml_path,
+            r#"[package]
+name = "test"
+version = "0.1.0"
+
+[[package.metadata.generate-rpm.assets]]
+source = "test"
+dest = "/usr/bin/test"
+config = ["missingok", "noreplace"]
+"#,
+        )
+        .unwrap();
+        let manifest = Manifest::from_path(&cargo_toml_path).unwrap();
+        let metadata = manifest.package.unwrap().metadata.unwrap();
+        let metadata = metadata.as_table().unwrap();
+        let assets_table = metadata.get("generate-rpm").unwrap().as_table().unwrap();
+        let assets = assets_table.get("assets").unwrap().as_array().unwrap();
+        let files = FileInfo::new(assets).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].config, true);
+        assert_eq!(files[0].missingok, true);
+        assert_eq!(files[0].noreplace, true);
     }
 }
