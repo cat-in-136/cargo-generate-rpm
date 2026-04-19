@@ -56,7 +56,7 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
     * mode: the permissions as octal string. (e.g. `755` to indicate `-rwxr-xr-x`)
     * config: set true if it is a configuration file.
       Set the string `"noreplace"` instead to avoid overwriting an existing file that have been modified.
-      (Not supported for `"missingok"` as of now)
+      Set the string `"missingok"` to allow installation if the file is missing.
     * doc: set true if it is a document file.
     * user: the owner of the file.
     * group: the group owner of the file.
