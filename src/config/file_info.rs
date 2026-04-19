@@ -14,7 +14,8 @@ pub struct FileInfo<'a, 'b, 'c, 'd, 'e> {
     pub group: Option<&'d str>,
     pub mode: Option<usize>,
     pub config: bool,
-    pub config_noreplace: bool,
+    pub missingok: bool,
+    pub noreplace: bool,
     pub doc: bool,
     pub caps: Option<&'e str>,
 }
@@ -63,16 +64,16 @@ impl FileInfo<'_, '_, '_, '_, '_> {
             } else {
                 None
             };
-            let (config, config_noreplace, _config_missingok) = match table.get("config") {
+            let (config, missingok, noreplace) = match table.get("config") {
                 Some(Value::Boolean(v)) => (*v, false, false),
+                Some(Value::String(v)) if v.eq("missingok") => (true, false, true),
                 Some(Value::String(v)) if v.eq("noreplace") => (true, true, false),
-                //Some(Value::String(v)) if v.eq("missingok") => (false, false, true),
                 None => (false, false, false),
                 _ => {
                     return Err(ConfigError::AssetFileWrongType(
                         idx,
                         "config",
-                        "bool or \"noreplace\"",
+                        "bool, \"missingok\" or \"noreplace\"",
                     ));
                 } //_ => return Err(ConfigError::AssetFileWrongType(idx, "config", "bool or \"noreplace\" or \"missingok\"")),
             };
@@ -91,7 +92,8 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                 group,
                 mode,
                 config,
-                config_noreplace,
+                missingok,
+                noreplace,
                 doc,
                 caps,
             });
@@ -160,8 +162,11 @@ impl FileInfo<'_, '_, '_, '_, '_> {
         if self.config {
             rpm_file_option = rpm_file_option.config();
         }
-        if self.config_noreplace {
+        if self.noreplace {
             rpm_file_option = rpm_file_option.noreplace();
+        }
+        if self.missingok {
+            rpm_file_option = rpm_file_option.missingok();
         }
         if self.doc {
             rpm_file_option = rpm_file_option.doc();
@@ -323,7 +328,8 @@ mod test {
                     group: None,
                     mode: Some(0o0100755),
                     config: false,
-                    config_noreplace: false,
+                    missingok: false,
+                    noreplace: false,
                     doc: false,
                     caps: None,
                 },
@@ -334,7 +340,8 @@ mod test {
                     group: None,
                     mode: Some(0o0100644),
                     config: false,
-                    config_noreplace: false,
+                    missingok: false,
+                    noreplace: false,
                     doc: true,
                     caps: None,
                 },
@@ -345,12 +352,15 @@ mod test {
                     group: None,
                     mode: Some(0o0100644),
                     config: false,
-                    config_noreplace: false,
+                    missingok: false,
+                    noreplace: false,
                     doc: true,
                     caps: None,
                 },
             ]
         );
+
+
     }
 
     #[test]
@@ -365,7 +375,8 @@ mod test {
             group: None,
             mode: None,
             config: false,
-            config_noreplace: false,
+            missingok: false,
+            noreplace: false,
             doc: true,
             caps: Some("cap_sys_admin=pe"),
         };
@@ -387,7 +398,8 @@ mod test {
             group: None,
             mode: None,
             config: false,
-            config_noreplace: false,
+            missingok: false,
+            noreplace: false,
             doc: true,
             caps: None,
         };
@@ -405,7 +417,8 @@ mod test {
             group: None,
             mode: None,
             config: false,
-            config_noreplace: false,
+            missingok: false,
+            noreplace: false,
             doc: false,
             caps: None,
         };
@@ -476,7 +489,8 @@ mod test {
             group: None,
             mode: None,
             config: false,
-            config_noreplace: false,
+            missingok: false,
+            noreplace: false,
             doc: false,
             caps: None,
         };
