@@ -155,16 +155,16 @@ impl FileInfo<'_, '_, '_, '_, '_> {
             rpm_file_option = rpm_file_option.group(group);
         }
         if let Some(mode) = self.mode {
-            rpm_file_option = rpm_file_option.mode(mode as i32);
+            rpm_file_option = rpm_file_option.permissions(mode as u16);
         }
         if self.config {
-            rpm_file_option = rpm_file_option.is_config();
+            rpm_file_option = rpm_file_option.config();
         }
         if self.config_noreplace {
-            rpm_file_option = rpm_file_option.is_config_noreplace();
+            rpm_file_option = rpm_file_option.noreplace();
         }
         if self.doc {
-            rpm_file_option = rpm_file_option.is_doc();
+            rpm_file_option = rpm_file_option.doc();
         }
         if let Some(caps) = self.caps {
             rpm_file_option = rpm_file_option

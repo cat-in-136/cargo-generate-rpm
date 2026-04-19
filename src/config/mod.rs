@@ -10,6 +10,7 @@ use crate::build_target::BuildTarget;
 use crate::cli::{Cli, ExtraMetadataSource};
 use crate::error::{ConfigError, Error};
 use file_info::FileInfo;
+
 use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueHelper};
 
 mod file_info;
@@ -159,34 +160,32 @@ impl Config {
         let files = FileInfo::new(assets)?;
         let parent = self.manifest_path.parent().unwrap();
 
-        let build_config = rpm::BuildConfig::default().compression(cfg.args.payload_compress);
-        let mut builder = rpm::PackageBuilder::new(name, version, license, arch.as_str(), desc)
-            .using_config(build_config);
-        builder = if let Some(t) = cfg.args.source_date {
-            builder.source_date(t)
+        let mut build_config = rpm::BuildConfig::default().compression(cfg.args.payload_compress);
+        if let Some(t) = cfg.args.source_date {
+            build_config = build_config.source_date(t)
         } else if let Ok(t) = std::env::var("SOURCE_DATE_EPOCH") {
             let t = t
                 .parse::<u32>()
                 .map_err(|err| Error::EnvError("SOURCE_DATE_EPOCH", err.to_string()))?;
-            builder.source_date(t)
-        } else {
-            builder
+            build_config = build_config.source_date(t)
         };
+        let mut builder = rpm::PackageBuilder::new(name, version, license, arch.as_str(), desc);
+        builder.using_config(build_config);
 
         let mut expanded_file_paths = vec![];
         for (idx, file) in files.iter().enumerate() {
             let entries = file.generate_rpm_file_entry(cfg.build_target, parent, idx)?;
             for (file_source, options) in entries {
                 expanded_file_paths.push(file_source.clone());
-                builder = builder.with_file(file_source, options)?;
+                builder.with_file(file_source, options)?;
             }
         }
 
         if let Some(release) = metadata.get_string_or_i64("release")? {
-            builder = builder.release(release);
+            builder.release(release);
         }
         if let Some(epoch) = metadata.get_i64("epoch")? {
-            builder = builder.epoch(epoch as u32);
+            builder.epoch(epoch as u32);
         }
 
         if let Some(pre_install_script) = metadata.get_str("pre_install_script")? {
@@ -196,7 +195,7 @@ impl Config {
             )?;
 
             if let Some(scriptlet) = scriptlet {
-                builder = builder.pre_install_script(scriptlet);
+                builder.pre_install_script(scriptlet);
             }
         }
 
@@ -207,7 +206,7 @@ impl Config {
             )?;
 
             if let Some(scriptlet) = scriptlet {
-                builder = builder.pre_uninstall_script(scriptlet);
+                builder.pre_uninstall_script(scriptlet);
             }
         }
 
@@ -218,7 +217,7 @@ impl Config {
             )?;
 
             if let Some(scriptlet) = scriptlet {
-                builder = builder.post_install_script(scriptlet);
+                builder.post_install_script(scriptlet);
             }
         }
 
@@ -229,7 +228,7 @@ impl Config {
             )?;
 
             if let Some(scriptlet) = scriptlet {
-                builder = builder.post_uninstall_script(scriptlet);
+                builder.post_uninstall_script(scriptlet);
             }
         }
 
@@ -240,7 +239,7 @@ impl Config {
             )?;
 
             if let Some(scriptlet) = scriptlet {
-                builder = builder.pre_trans_script(scriptlet);
+                builder.pre_trans_script(scriptlet);
             }
         }
 
@@ -251,7 +250,7 @@ impl Config {
             )?;
 
             if let Some(scriptlet) = scriptlet {
-                builder = builder.post_trans_script(scriptlet);
+                builder.post_trans_script(scriptlet);
             }
         }
 
@@ -262,7 +261,7 @@ impl Config {
             )?;
 
             if let Some(scriptlet) = scriptlet {
-                builder = builder.pre_untrans_script(scriptlet);
+                builder.pre_untrans_script(scriptlet);
             }
         }
 
@@ -273,7 +272,7 @@ impl Config {
             )?;
 
             if let Some(scriptlet) = scriptlet {
-                builder = builder.post_untrans_script(scriptlet);
+                builder.post_untrans_script(scriptlet);
             }
         }
 
@@ -287,20 +286,20 @@ impl Config {
             (None, None, Some(v)) => Some(v.get()?.as_str()),
             (None, None, None) => None,
         } {
-            builder = builder.url(url);
+            builder.url(url);
         }
 
         if let Some(vendor) = metadata.get_str("vendor")? {
-            builder = builder.vendor(vendor);
+            builder.vendor(vendor);
         }
 
         if metadata.get_bool("require-sh")?.unwrap_or(true) {
-            builder = builder.requires(Dependency::any("/bin/sh".to_string()));
+            builder.requires(Dependency::any("/bin/sh".to_string()));
         }
 
         if let Some(requires) = metadata.get_table("requires")? {
             for dependency in Self::table_to_dependencies(requires)? {
-                builder = builder.requires(dependency);
+                builder.requires(dependency);
             }
         }
 
@@ -311,41 +310,41 @@ impl Config {
         };
 
         for requires in find_requires(expanded_file_paths, auto_req)? {
-            builder = builder.requires(Dependency::any(requires));
+            builder.requires(Dependency::any(requires));
         }
         if let Some(obsoletes) = metadata.get_table("obsoletes")? {
             for dependency in Self::table_to_dependencies(obsoletes)? {
-                builder = builder.obsoletes(dependency);
+                builder.obsoletes(dependency);
             }
         }
         if let Some(conflicts) = metadata.get_table("conflicts")? {
             for dependency in Self::table_to_dependencies(conflicts)? {
-                builder = builder.conflicts(dependency);
+                builder.conflicts(dependency);
             }
         }
         if let Some(provides) = metadata.get_table("provides")? {
             for dependency in Self::table_to_dependencies(provides)? {
-                builder = builder.provides(dependency);
+                builder.provides(dependency);
             }
         }
         if let Some(recommends) = metadata.get_table("recommends")? {
             for dependency in Self::table_to_dependencies(recommends)? {
-                builder = builder.recommends(dependency);
+                builder.recommends(dependency);
             }
         }
         if let Some(supplements) = metadata.get_table("supplements")? {
             for dependency in Self::table_to_dependencies(supplements)? {
-                builder = builder.supplements(dependency);
+                builder.supplements(dependency);
             }
         }
         if let Some(suggests) = metadata.get_table("suggests")? {
             for dependency in Self::table_to_dependencies(suggests)? {
-                builder = builder.suggests(dependency);
+                builder.suggests(dependency);
             }
         }
         if let Some(enhances) = metadata.get_table("enhances")? {
             for dependency in Self::table_to_dependencies(enhances)? {
-                builder = builder.enhances(dependency);
+                builder.enhances(dependency);
             }
         }
 
