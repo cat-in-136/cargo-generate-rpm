@@ -41,18 +41,19 @@ fn run() -> Result<(), Error> {
     let signer = if let Some(keyfile_path) = &args.signing_key {
         let key: Vec<u8> = fs::read(keyfile_path)
             .map_err(|err| Error::FileIo(PathBuf::from(keyfile_path), err))?;
-        Some(Signer::load_from_asc_bytes(&key))
+        match Signer::from_asc_bytes(&key) {
+            Ok(signer) => Some(signer),
+            Err(e) => return Err(Error::Rpm(e)),
+        }
     } else {
         None
-    }
-    .transpose()?;
+    };
 
-    let rpm_builder = config.create_rpm_builder(BuilderConfig::new(&build_target, &args))?;
+    let mut rpm_builder = config.create_rpm_builder(BuilderConfig::new(&build_target, &args))?;
 
-    let rpm_pkg = if let Some(signer) = signer {
-        rpm_builder.build_and_sign(signer)
-    } else {
-        rpm_builder.build()
+    let rpm_pkg = match signer {
+        Some(signer) => rpm_builder.build_and_sign(signer),
+        None => rpm_builder.build(),
     }?;
 
     let pkg_name = rpm_pkg.metadata.get_name()?;

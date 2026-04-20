@@ -14,7 +14,8 @@ pub struct FileInfo<'a, 'b, 'c, 'd, 'e> {
     pub group: Option<&'d str>,
     pub mode: Option<usize>,
     pub config: bool,
-    pub config_noreplace: bool,
+    pub missingok: bool,
+    pub noreplace: bool,
     pub doc: bool,
     pub caps: Option<&'e str>,
 }
@@ -63,19 +64,37 @@ impl FileInfo<'_, '_, '_, '_, '_> {
             } else {
                 None
             };
-            let (config, config_noreplace, _config_missingok) = match table.get("config") {
+            let (config, missingok, noreplace) = match table.get("config") {
                 Some(Value::Boolean(v)) => (*v, false, false),
-                Some(Value::String(v)) if v.eq("noreplace") => (true, true, false),
-                //Some(Value::String(v)) if v.eq("missingok") => (false, false, true),
+                Some(Value::String(v)) if v.eq("missingok") => (true, true, false),
+                Some(Value::String(v)) if v.eq("noreplace") => (true, false, true),
+                Some(Value::Array(arr)) => {
+                    let (mut missingok, mut noreplace) = (false, false);
+                    for item in arr {
+                        match item {
+                            Value::String(v) if v.eq("missingok") => missingok = true,
+                            Value::String(v) if v.eq("noreplace") => noreplace = true,
+                            _ => {
+                                return Err(ConfigError::AssetFileWrongType(
+                                    idx,
+                                    "config",
+                                    "array element must be 'missingok' or 'noreplace'",
+                                ));
+                            }
+                        }
+                    }
+                    (true, missingok, noreplace)
+                }
                 None => (false, false, false),
                 _ => {
                     return Err(ConfigError::AssetFileWrongType(
                         idx,
                         "config",
-                        "bool or \"noreplace\"",
+                        "bool, string, or array of strings",
                     ));
-                } //_ => return Err(ConfigError::AssetFileWrongType(idx, "config", "bool or \"noreplace\" or \"missingok\"")),
+                }
             };
+
             let doc = if let Some(is_doc) = table.get("doc") {
                 is_doc
                     .as_bool()
@@ -91,7 +110,8 @@ impl FileInfo<'_, '_, '_, '_, '_> {
                 group,
                 mode,
                 config,
-                config_noreplace,
+                missingok,
+                noreplace,
                 doc,
                 caps,
             });
@@ -155,16 +175,19 @@ impl FileInfo<'_, '_, '_, '_, '_> {
             rpm_file_option = rpm_file_option.group(group);
         }
         if let Some(mode) = self.mode {
-            rpm_file_option = rpm_file_option.mode(mode as i32);
+            rpm_file_option = rpm_file_option.permissions(mode as u16);
         }
         if self.config {
-            rpm_file_option = rpm_file_option.is_config();
+            rpm_file_option = rpm_file_option.config();
         }
-        if self.config_noreplace {
-            rpm_file_option = rpm_file_option.is_config_noreplace();
+        if self.noreplace {
+            rpm_file_option = rpm_file_option.noreplace();
+        }
+        if self.missingok {
+            rpm_file_option = rpm_file_option.missingok();
         }
         if self.doc {
-            rpm_file_option = rpm_file_option.is_doc();
+            rpm_file_option = rpm_file_option.doc();
         }
         if let Some(caps) = self.caps {
             rpm_file_option = rpm_file_option
@@ -323,7 +346,8 @@ mod test {
                     group: None,
                     mode: Some(0o0100755),
                     config: false,
-                    config_noreplace: false,
+                    missingok: false,
+                    noreplace: false,
                     doc: false,
                     caps: None,
                 },
@@ -334,7 +358,8 @@ mod test {
                     group: None,
                     mode: Some(0o0100644),
                     config: false,
-                    config_noreplace: false,
+                    missingok: false,
+                    noreplace: false,
                     doc: true,
                     caps: None,
                 },
@@ -345,7 +370,8 @@ mod test {
                     group: None,
                     mode: Some(0o0100644),
                     config: false,
-                    config_noreplace: false,
+                    missingok: false,
+                    noreplace: false,
                     doc: true,
                     caps: None,
                 },
@@ -365,7 +391,8 @@ mod test {
             group: None,
             mode: None,
             config: false,
-            config_noreplace: false,
+            missingok: false,
+            noreplace: false,
             doc: true,
             caps: Some("cap_sys_admin=pe"),
         };
@@ -387,7 +414,8 @@ mod test {
             group: None,
             mode: None,
             config: false,
-            config_noreplace: false,
+            missingok: false,
+            noreplace: false,
             doc: true,
             caps: None,
         };
@@ -405,7 +433,8 @@ mod test {
             group: None,
             mode: None,
             config: false,
-            config_noreplace: false,
+            missingok: false,
+            noreplace: false,
             doc: false,
             caps: None,
         };
@@ -476,7 +505,8 @@ mod test {
             group: None,
             mode: None,
             config: false,
-            config_noreplace: false,
+            missingok: false,
+            noreplace: false,
             doc: false,
             caps: None,
         };
@@ -556,5 +586,32 @@ mod test {
                 "/usr/share/doc/cargo-generate-rpm/README.md".into()
             )]
         );
+
+        // Test array config format: ["missingok", "noreplace"]
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cargo_toml_path = temp_dir.path().join("Cargo.toml");
+        std::fs::write(
+            &cargo_toml_path,
+            r#"[package]
+name = "test"
+version = "0.1.0"
+
+[[package.metadata.generate-rpm.assets]]
+source = "test"
+dest = "/usr/bin/test"
+config = ["missingok", "noreplace"]
+"#,
+        )
+        .unwrap();
+        let manifest = Manifest::from_path(&cargo_toml_path).unwrap();
+        let metadata = manifest.package.unwrap().metadata.unwrap();
+        let metadata = metadata.as_table().unwrap();
+        let assets_table = metadata.get("generate-rpm").unwrap().as_table().unwrap();
+        let assets = assets_table.get("assets").unwrap().as_array().unwrap();
+        let files = FileInfo::new(assets).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].config, true);
+        assert_eq!(files[0].missingok, true);
+        assert_eq!(files[0].noreplace, true);
     }
 }
