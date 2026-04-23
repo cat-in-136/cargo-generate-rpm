@@ -360,10 +360,10 @@ pub(crate) fn load_script_if_path<P: AsRef<Path>>(
 
     if Path::new(&relpath).exists() {
         return std::fs::read_to_string(relpath);
-    } else if let Some(p) = parent.as_ref().join(&relpath).to_str() {
-        if Path::new(&p).exists() {
-            return std::fs::read_to_string(p);
-        }
+    } else if let Some(p) = parent.as_ref().join(&relpath).to_str()
+        && Path::new(&p).exists()
+    {
+        return std::fs::read_to_string(p);
     }
 
     Ok(asset.to_string())

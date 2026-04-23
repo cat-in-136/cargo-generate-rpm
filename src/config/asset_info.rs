@@ -20,19 +20,17 @@ pub struct AssetInfo<'a, 'b, 'c, 'd, 'e> {
 }
 
 impl AssetInfo<'_, '_, '_, '_, '_> {
-    pub fn new(assets: &[Value]) -> Result<Vec<AssetInfo>, ConfigError> {
+    pub fn new(assets: &[Value]) -> Result<Vec<AssetInfo<'_, '_, '_, '_, '_>>, ConfigError> {
         let mut files = Vec::with_capacity(assets.len());
         for (idx, value) in assets.iter().enumerate() {
             let table = value
                 .as_table()
                 .ok_or(ConfigError::AssetFileUndefined(idx, "source"))?;
 
-            let dir = if let Some(is_dir) = table.get("dir") {
-                is_dir
-                    .as_bool()
-                    .ok_or(ConfigError::AssetFileWrongType(idx, "dir", "bool"))?
-            } else {
-                false
+            let dir = match table.get("dir") {
+                Some(Value::Boolean(v)) => *v,
+                Some(_) => return Err(ConfigError::AssetFileWrongType(idx, "dir", "bool")),
+                None => false,
             };
 
             let source = if dir {
@@ -80,12 +78,10 @@ impl AssetInfo<'_, '_, '_, '_, '_> {
                 } else {
                     FileMode::regular(((mode) & 0xFFFF) as u16)
                 }
+            } else if dir {
+                FileMode::dir(0o0775)
             } else {
-                if dir {
-                    FileMode::dir(0o0775)
-                } else {
-                    FileMode::regular(0o0664)
-                }
+                FileMode::regular(0o0664)
             };
             let caps = if let Some(caps) = table.get("caps") {
                 Some(

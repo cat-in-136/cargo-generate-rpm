@@ -72,11 +72,11 @@ fn run() -> Result<(), Error> {
 
     let target_file_name = determine_output_dir(args.output.as_ref(), &file_name, build_target);
 
-    if let Some(parent_dir) = target_file_name.parent() {
-        if !parent_dir.exists() {
-            fs::create_dir_all(parent_dir)
-                .map_err(|err| Error::FileIo(parent_dir.to_path_buf(), err))?;
-        }
+    if let Some(parent_dir) = target_file_name.parent()
+        && !parent_dir.exists()
+    {
+        fs::create_dir_all(parent_dir)
+            .map_err(|err| Error::FileIo(parent_dir.to_path_buf(), err))?;
     }
     let mut f = fs::File::create(&target_file_name)
         .map_err(|err| Error::FileIo(target_file_name.to_path_buf(), err))?;
