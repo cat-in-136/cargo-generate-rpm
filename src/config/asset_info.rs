@@ -1,18 +1,17 @@
-use glob::glob;
-use toml::value::Table;
-
 use crate::build_target::BuildTarget;
 use crate::error::ConfigError;
+use glob::glob;
+use rpm::{FileMode, FileOptions};
 use std::path::{Path, PathBuf};
 use toml::Value;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct AssetInfo<'a, 'b, 'c, 'd, 'e> {
-    pub source: &'a str,
+    pub source: Option<&'a str>,
     pub dest: &'b str,
     pub user: Option<&'c str>,
     pub group: Option<&'d str>,
-    pub mode: Option<usize>,
+    pub mode: FileMode,
     pub config: bool,
     pub missingok: bool,
     pub noreplace: bool,
@@ -27,11 +26,26 @@ impl AssetInfo<'_, '_, '_, '_, '_> {
             let table = value
                 .as_table()
                 .ok_or(ConfigError::AssetFileUndefined(idx, "source"))?;
-            let source = table
-                .get("source")
-                .ok_or(ConfigError::AssetFileUndefined(idx, "source"))?
-                .as_str()
-                .ok_or(ConfigError::AssetFileWrongType(idx, "source", "string"))?;
+
+            let dir = if let Some(is_dir) = table.get("dir") {
+                is_dir
+                    .as_bool()
+                    .ok_or(ConfigError::AssetFileWrongType(idx, "dir", "bool"))?
+            } else {
+                false
+            };
+
+            let source = if dir {
+                None
+            } else {
+                Some(
+                    table
+                        .get("source")
+                        .ok_or(ConfigError::AssetFileUndefined(idx, "source"))?
+                        .as_str()
+                        .ok_or(ConfigError::AssetFileWrongType(idx, "source", "string"))?,
+                )
+            };
             let dest = table
                 .get("dest")
                 .ok_or(ConfigError::AssetFileUndefined(idx, "dest"))?
@@ -55,7 +69,24 @@ impl AssetInfo<'_, '_, '_, '_, '_> {
             } else {
                 None
             };
-            let mode = Self::get_mode(table, source, idx)?;
+            let mode = if let Some(mode) = table.get("mode") {
+                let mode = mode
+                    .as_str()
+                    .ok_or(ConfigError::AssetFileWrongType(idx, "mode", "string"))?;
+                let mode = usize::from_str_radix(mode, 8)
+                    .map_err(|_| ConfigError::AssetFileWrongType(idx, "mode", "oct-string"))?;
+                if dir {
+                    FileMode::dir(((mode) & 0xFFFF) as u16)
+                } else {
+                    FileMode::regular(((mode) & 0xFFFF) as u16)
+                }
+            } else {
+                if dir {
+                    FileMode::dir(0o0775)
+                } else {
+                    FileMode::regular(0o0664)
+                }
+            };
             let caps = if let Some(caps) = table.get("caps") {
                 Some(
                     caps.as_str()
@@ -90,9 +121,9 @@ impl AssetInfo<'_, '_, '_, '_, '_> {
                     return Err(ConfigError::AssetFileWrongType(
                         idx,
                         "config",
-                        "bool or \"noreplace\"",
+                        "bool or \"noreplace\" or \"missingok\"",
                     ));
-                } //_ => return Err(ConfigError::AssetFileWrongType(idx, "config", "bool or \"noreplace\" or \"missingok\"")),
+                }
             };
 
             let doc = if let Some(is_doc) = table.get("doc") {
@@ -119,43 +150,27 @@ impl AssetInfo<'_, '_, '_, '_, '_> {
         Ok(files)
     }
 
-    fn get_mode(table: &Table, source: &str, idx: usize) -> Result<Option<usize>, ConfigError> {
-        if let Some(mode) = table.get("mode") {
-            let mode = mode
-                .as_str()
-                .ok_or(ConfigError::AssetFileWrongType(idx, "mode", "string"))?;
-            let mode = usize::from_str_radix(mode, 8)
-                .map_err(|_| ConfigError::AssetFileWrongType(idx, "mode", "oct-string"))?;
-            let file_mode = if mode & 0o170000 != 0 {
-                None
-            } else if source.ends_with('/') {
-                Some(0o040000) // S_IFDIR
-            } else {
-                Some(0o100000) // S_IFREG
-            };
-            Ok(Some(file_mode.unwrap_or_default() | mode))
-        } else {
-            Ok(None)
-        }
-    }
-
     fn generate_expanded_path<P: AsRef<Path>>(
         &self,
         build_target: &BuildTarget,
         parent: P,
         idx: usize,
-    ) -> Result<Vec<(PathBuf, String)>, ConfigError> {
-        let source = get_asset_rel_path(self.source, build_target);
+    ) -> Result<Option<Vec<(PathBuf, String)>>, ConfigError> {
+        let source = if let Some(source) = self.source {
+            get_asset_rel_path(source, build_target)
+        } else {
+            return Ok(None);
+        };
 
         let expanded = expand_glob(source.as_str(), self.dest, idx)?;
         if !expanded.is_empty() {
-            return Ok(expanded);
+            return Ok(Some(expanded));
         }
 
         if let Some(src) = parent.as_ref().join(&source).to_str() {
             let expanded = expand_glob(src, self.dest, idx)?;
             if !expanded.is_empty() {
-                return Ok(expanded);
+                return Ok(Some(expanded));
             }
         }
 
@@ -166,17 +181,15 @@ impl AssetInfo<'_, '_, '_, '_, '_> {
         &self,
         dest: T,
         idx: usize,
-    ) -> Result<rpm::FileOptions, ConfigError> {
-        let mut rpm_file_option = rpm::FileOptions::new(dest.to_string());
+    ) -> Result<FileOptions, ConfigError> {
+        let mut rpm_file_option = FileOptions::new(dest.to_string());
         if let Some(user) = self.user {
             rpm_file_option = rpm_file_option.user(user);
-        }
+        };
         if let Some(group) = self.group {
             rpm_file_option = rpm_file_option.group(group);
         }
-        if let Some(mode) = self.mode {
-            rpm_file_option = rpm_file_option.permissions(mode as u16);
-        }
+        rpm_file_option = rpm_file_option.mode(self.mode);
         if self.config {
             rpm_file_option = rpm_file_option.config();
         }
@@ -202,8 +215,9 @@ impl AssetInfo<'_, '_, '_, '_, '_> {
         build_target: &BuildTarget,
         parent: P,
         idx: usize,
-    ) -> Result<Vec<(PathBuf, rpm::FileOptions)>, ConfigError> {
+    ) -> Result<Vec<(PathBuf, FileOptions)>, ConfigError> {
         self.generate_expanded_path(build_target, parent, idx)?
+            .unwrap_or(vec![(PathBuf::from(""), self.dest.to_string())])
             .iter()
             .map(|(src, dst)| {
                 self.generate_rpm_file_options(dst, idx)
@@ -340,11 +354,11 @@ mod test {
             files,
             vec![
                 AssetInfo {
-                    source: "target/release/cargo-generate-rpm",
+                    source: Some("target/release/cargo-generate-rpm"),
                     dest: "/usr/bin/cargo-generate-rpm",
                     user: None,
                     group: None,
-                    mode: Some(0o0100755),
+                    mode: FileMode::from(0o0100755),
                     config: false,
                     missingok: false,
                     noreplace: false,
@@ -352,11 +366,11 @@ mod test {
                     caps: None,
                 },
                 AssetInfo {
-                    source: "LICENSE",
+                    source: Some("LICENSE"),
                     dest: "/usr/share/doc/cargo-generate-rpm/LICENSE",
                     user: None,
                     group: None,
-                    mode: Some(0o0100644),
+                    mode: FileMode::from(0o0100644),
                     config: false,
                     missingok: false,
                     noreplace: false,
@@ -364,11 +378,11 @@ mod test {
                     caps: None,
                 },
                 AssetInfo {
-                    source: "README.md",
+                    source: Some("README.md"),
                     dest: "/usr/share/doc/cargo-generate-rpm/README.md",
                     user: None,
                     group: None,
-                    mode: Some(0o0100644),
+                    mode: FileMode::from(0o0100644),
                     config: false,
                     missingok: false,
                     noreplace: false,
@@ -385,11 +399,11 @@ mod test {
         let args = crate::cli::Cli::default();
         let target = BuildTarget::new(&args);
         let file_info = AssetInfo {
-            source: "README.md",
+            source: Some("README.md"),
             dest: "/usr/share/doc/cargo-generate-rpm/README.md",
             user: None,
             group: None,
-            mode: None,
+            mode: FileMode::regular(0o0664),
             config: false,
             missingok: false,
             noreplace: false,
@@ -398,21 +412,22 @@ mod test {
         };
         let expanded = file_info
             .generate_expanded_path(&target, &tempdir, 0)
+            .unwrap()
             .unwrap();
         assert_eq!(
             expanded
                 .iter()
                 .map(|(src, dst)| { (src.as_path().to_str(), dst) })
                 .collect::<Vec<_>>(),
-            vec![(Some(file_info.source), &file_info.dest.to_string())]
+            vec![(file_info.source, &file_info.dest.to_string())]
         );
 
         let file_info = AssetInfo {
-            source: "not-exist-file",
+            source: Some("not-exist-file"),
             dest: "/usr/share/doc/cargo-generate-rpm/not-exist-file",
             user: None,
             group: None,
-            mode: None,
+            mode: FileMode::regular(0o0664),
             config: false,
             missingok: false,
             noreplace: false,
@@ -427,11 +442,11 @@ mod test {
         std::fs::create_dir_all(tempdir.path().join("target/release")).unwrap();
         File::create(tempdir.path().join("target/release/foobar")).unwrap();
         let file_info = AssetInfo {
-            source: "target/release/foobar",
+            source: Some("target/release/foobar"),
             dest: "/usr/bin/foobar",
             user: None,
             group: None,
-            mode: None,
+            mode: FileMode::regular(0o0664),
             config: false,
             missingok: false,
             noreplace: false,
@@ -440,6 +455,7 @@ mod test {
         };
         let expanded = file_info
             .generate_expanded_path(&target, &tempdir, 0)
+            .unwrap()
             .unwrap();
         assert_eq!(
             expanded
@@ -473,6 +489,7 @@ mod test {
         let target = BuildTarget::new(&args);
         let expanded = file_info
             .generate_expanded_path(&target, &tempdir, 0)
+            .unwrap()
             .unwrap();
         assert_eq!(
             expanded
@@ -499,11 +516,11 @@ mod test {
         )
         .unwrap();
         let file_info = AssetInfo {
-            source: "target/release/my-bin",
+            source: Some("target/release/my-bin"),
             dest: "/usr/bin/my-bin",
             user: None,
             group: None,
-            mode: None,
+            mode: FileMode::regular(0o0664),
             config: false,
             missingok: false,
             noreplace: false,
@@ -527,6 +544,7 @@ mod test {
         let target = BuildTarget::new(&args);
         let expanded = file_info
             .generate_expanded_path(&target, &tempdir, 0)
+            .unwrap()
             .unwrap();
         assert_eq!(
             expanded
@@ -586,8 +604,38 @@ mod test {
                 "/usr/share/doc/cargo-generate-rpm/README.md".into()
             )]
         );
+    }
 
-        // Test array config format: ["missingok", "noreplace"]
+    #[test]
+    fn test_asset_empty_directory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cargo_toml_path = temp_dir.path().join("Cargo.toml");
+        std::fs::write(
+            &cargo_toml_path,
+            r#"[package]
+name = "test"
+version = "0.1.0"
+
+[[package.metadata.generate-rpm.assets]]
+source = "test/"
+dest = "/usr/bin/test/"
+dir = true
+"#,
+        )
+        .unwrap();
+
+        let manifest = Manifest::from_path(&cargo_toml_path).unwrap();
+        let metadata = manifest.package.unwrap().metadata.unwrap();
+        let metadata = metadata.as_table().unwrap();
+        let assets_table = metadata.get("generate-rpm").unwrap().as_table().unwrap();
+        let assets = assets_table.get("assets").unwrap().as_array().unwrap();
+        let files = AssetInfo::new(assets).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].mode, FileMode::dir(0o0775));
+    }
+
+    #[test]
+    fn test_asset_config() {
         let temp_dir = tempfile::tempdir().unwrap();
         let cargo_toml_path = temp_dir.path().join("Cargo.toml");
         std::fs::write(
@@ -598,7 +646,22 @@ version = "0.1.0"
 
 [[package.metadata.generate-rpm.assets]]
 source = "test"
-dest = "/usr/bin/test"
+dest = "/usr/bin/test0"
+config = true
+
+[[package.metadata.generate-rpm.assets]]
+source = "test"
+dest = "/usr/bin/test1"
+config = "missingok"
+
+[[package.metadata.generate-rpm.assets]]
+source = "test"
+dest = "/usr/bin/test2"
+config = "noreplace"
+
+[[package.metadata.generate-rpm.assets]]
+source = "test"
+dest = "/usr/bin/test3"
 config = ["missingok", "noreplace"]
 "#,
         )
@@ -609,9 +672,22 @@ config = ["missingok", "noreplace"]
         let assets_table = metadata.get("generate-rpm").unwrap().as_table().unwrap();
         let assets = assets_table.get("assets").unwrap().as_array().unwrap();
         let files = AssetInfo::new(assets).unwrap();
-        assert_eq!(files.len(), 1);
-        assert_eq!(files[0].config, true);
-        assert_eq!(files[0].missingok, true);
-        assert_eq!(files[0].noreplace, true);
+        assert_eq!(files.len(), 4);
+        assert_eq!(
+            (files[0].config, files[0].missingok, files[0].noreplace),
+            (true, false, false)
+        );
+        assert_eq!(
+            (files[1].config, files[1].missingok, files[1].noreplace),
+            (true, true, false)
+        );
+        assert_eq!(
+            (files[2].config, files[2].missingok, files[2].noreplace),
+            (true, false, true)
+        );
+        assert_eq!(
+            (files[3].config, files[3].missingok, files[3].noreplace),
+            (true, true, true)
+        );
     }
 }
