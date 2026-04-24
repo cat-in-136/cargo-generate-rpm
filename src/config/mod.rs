@@ -9,11 +9,10 @@ use crate::auto_req::{AutoReqMode, find_requires};
 use crate::build_target::BuildTarget;
 use crate::cli::{Cli, ExtraMetadataSource};
 use crate::error::{ConfigError, Error};
-use file_info::FileInfo;
-
+use asset_info::AssetInfo;
 use metadata::{CompoundMetadataConfig, ExtraMetaData, MetadataConfig, TomlValueHelper};
 
-mod file_info;
+mod asset_info;
 mod metadata;
 
 #[derive(Debug)]
@@ -157,7 +156,7 @@ impl Config {
         let assets = metadata
             .get_array("assets")?
             .ok_or(ConfigError::Missing("package.assets".to_string()))?;
-        let files = FileInfo::new(assets)?;
+        let files = AssetInfo::new(assets)?;
         let parent = self.manifest_path.parent().unwrap();
 
         let mut build_config = rpm::BuildConfig::default().compression(cfg.args.payload_compress);
@@ -357,14 +356,14 @@ pub(crate) fn load_script_if_path<P: AsRef<Path>>(
     parent: P,
     build_target: &BuildTarget,
 ) -> std::io::Result<String> {
-    let relpath = file_info::get_asset_rel_path(asset, build_target);
+    let relpath = asset_info::get_asset_rel_path(asset, build_target);
 
     if Path::new(&relpath).exists() {
         return std::fs::read_to_string(relpath);
-    } else if let Some(p) = parent.as_ref().join(&relpath).to_str() {
-        if Path::new(&p).exists() {
-            return std::fs::read_to_string(p);
-        }
+    } else if let Some(p) = parent.as_ref().join(&relpath).to_str()
+        && Path::new(&p).exists()
+    {
+        return std::fs::read_to_string(p);
     }
 
     Ok(asset.to_string())
