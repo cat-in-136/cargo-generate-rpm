@@ -136,7 +136,7 @@ fn find_require_of_shebang(path: &Path) -> Result<Option<String>, AutoReqError> 
         let mut read = BufReader::new(file);
         let mut shebang = [0u8; 2];
         let shebang_size = read.read(&mut shebang)?;
-        if shebang_size == 2 || shebang == [b'#', b'!'] {
+        if shebang_size == 2 && shebang == [b'#', b'!'] {
             let mut line = String::new();
             read.read_line(&mut line)
                 .map_err(|e| AutoReqError::WrongShebangError(path.to_path_buf(), e))?;
