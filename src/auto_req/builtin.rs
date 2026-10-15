@@ -87,13 +87,18 @@ fn find_requires_by_ldd(
         .skip_while(|&line| !line.contains(path.to_str().unwrap()))
         .skip(1)
         .take_while(|&line| line.contains(" => "))
-        .filter_map(|line| line.trim_start().split(" => ").next());
+        .filter_map(|line| {
+            line.trim_start()
+                .split(" => ")
+                .flat_map(|chunk| chunk.split(" [WEAK]"))
+                .next()
+        });
 
     let marker = marker.unwrap_or_default();
     let mut requires = BTreeSet::new();
     for name in unversioned_libraries
         .into_iter()
-        .chain(versioned_libraries.into_iter())
+        .chain(versioned_libraries)
         .filter(|&name| skip_so_name(name))
     {
         if name.contains(" (") {
