@@ -175,8 +175,13 @@ impl Config {
         for (idx, file) in files.iter().enumerate() {
             let entries = file.generate_rpm_file_entry(cfg.build_target, parent, idx)?;
             for (file_source, options) in entries {
-                expanded_file_paths.push(file_source.clone());
-                builder.with_file(file_source, options)?;
+                if file.source.is_none() {
+                    // source-less asset (`dir = true`): add a directory entry only
+                    builder.with_dir_entry(options)?;
+                } else {
+                    expanded_file_paths.push(file_source.clone());
+                    builder.with_file(file_source, options)?;
+                }
             }
         }
 
@@ -566,5 +571,51 @@ documentation.workspace = true
         } else {
             matches!(builder, Err(Error::Config(ConfigError::AssetFileNotFound(path))) if path.to_str() == Some("target/release/cargo-generate-rpm"))
         });
+    }
+
+    #[test]
+    fn test_config_create_rpm_builder_dir_asset() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::write(tempdir.path().join("data.txt"), "data").unwrap();
+        std::fs::write(
+            tempdir.path().join("Cargo.toml"),
+            r#"[package]
+name = "dirtest"
+version = "0.1.0"
+license = "MIT"
+description = "dir asset test"
+
+[[package.metadata.generate-rpm.assets]]
+dest = "/usr/share/dirtest"
+dir = true
+mode = "0755"
+
+[[package.metadata.generate-rpm.assets]]
+source = "data.txt"
+dest = "/usr/share/dirtest/data.txt"
+mode = "0644"
+"#,
+        )
+        .unwrap();
+
+        let config = Config::new(tempdir.path(), None, &[]).unwrap();
+        let args = crate::cli::Cli {
+            ..Default::default()
+        };
+        let target = BuildTarget::new(&args);
+        let cfg = BuilderConfig::new(&target, &args);
+        let pkg = config.create_rpm_builder(cfg).unwrap().build().unwrap();
+
+        let entries = pkg.metadata.get_file_entries().unwrap();
+        let dir = entries
+            .iter()
+            .find(|e| e.path == Path::new("/usr/share/dirtest"))
+            .expect("directory entry is part of the package");
+        assert_eq!(dir.mode, rpm::FileMode::dir(0o0755));
+        assert!(
+            entries
+                .iter()
+                .any(|e| e.path == Path::new("/usr/share/dirtest/data.txt"))
+        );
     }
 }

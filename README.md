@@ -53,6 +53,8 @@ from [the `Cargo.toml` file](https://doc.rust-lang.org/cargo/reference/manifest.
       Wildcard character `*` is allowed.
     * dest: the install-destination. (e.g. `/usr/bin/XXX`) It shall be a file path or a directory path ending `/`.
       If source contains wildcard character `*`, it must be a directory, not a file path.
+    * dir: set true to add an (empty) directory owned by the package. `source` is not used then;
+      `dest` is the directory path. `mode`, `user` and `group` apply (default mode `0775`).
     * mode: the permissions as octal string. (e.g. `755` to indicate `-rwxr-xr-x`)
      * config: set true if it is a configuration file.
        Set the string `"noreplace"` instead to avoid overwriting an existing file that have been modified.
